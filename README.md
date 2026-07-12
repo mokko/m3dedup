@@ -35,6 +35,8 @@ python -m m3dedup scan-async /path/to/directory
 python -m m3dedup scan-async /path/to/directory --concurrency 64
 ```
 
+The `--concurrency` flag is optional. If omitted, it defaults to `min(32, CPU_threads × 4)`.
+
 Re-scan all previously scanned directories:
 
 ```bash
