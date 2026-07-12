@@ -16,11 +16,12 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from .db import get_cached_file, insert_file
+from .progress import count_files, make_progress
 from .scanner import CHUNK_SIZE
 
 log = logging.getLogger(__name__)
 
-DEFAULT_CONCURRENCY = 32
+DEFAULT_CONCURRENCY = min(32, (os.cpu_count() or 4) * 4)
 
 
 def _md5_file(path: Path) -> str:
@@ -75,20 +76,25 @@ async def _scan_directory_async(
 ) -> int:
     scan_date = datetime.now(timezone.utc).isoformat()
     sem = asyncio.Semaphore(concurrency)
+    total = count_files(directory)
     count = 0
 
-    # Collect all file paths first (os.walk is synchronous but fast)
-    tasks: list[asyncio.Task] = []
-    for root, _dirs, files in os.walk(directory):
-        for name in files:
-            full = Path(root) / name
-            tasks.append(asyncio.create_task(_scan_one(full, scan_date, conn, sem)))
+    with make_progress() as progress:
+        task = progress.add_task("scan", total=total)
 
-    # Process results as they complete for progress feedback
-    for coro in asyncio.as_completed(tasks):
-        ok = await coro
-        if ok:
-            count += 1
+        # Collect all file paths first (os.walk is synchronous but fast)
+        tasks: list[asyncio.Task] = []
+        for root, _dirs, files in os.walk(directory):
+            for name in files:
+                full = Path(root) / name
+                tasks.append(asyncio.create_task(_scan_one(full, scan_date, conn, sem)))
+
+        # Process results as they complete for progress feedback
+        for coro in asyncio.as_completed(tasks):
+            ok = await coro
+            if ok:
+                count += 1
+            progress.advance(task)
 
     conn.commit()
     return count

@@ -9,6 +9,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from .db import get_cached_file, insert_file
+from .progress import count_files, make_progress
 
 log = logging.getLogger(__name__)
 
@@ -38,33 +39,39 @@ def scan_directory(directory: str | Path, conn) -> int:
         raise NotADirectoryError(f"Not a directory: {directory}")
 
     scan_date = datetime.now(timezone.utc).isoformat()
+    total = count_files(directory)
     count = 0
 
-    for root, _dirs, files in os.walk(directory):
-        for name in files:
-            full = Path(root) / name
-            try:
-                stat = full.stat()
-                mtime = datetime.fromtimestamp(stat.st_mtime, timezone.utc).isoformat()
+    with make_progress() as progress:
+        task = progress.add_task("scan", total=total)
 
-                cached = get_cached_file(conn, str(full))
-                if cached and cached[0] == mtime:
-                    md5 = cached[1]
-                else:
-                    md5 = md5_file(full)
+        for root, _dirs, files in os.walk(directory):
+            for name in files:
+                full = Path(root) / name
+                try:
+                    stat = full.stat()
+                    mtime = datetime.fromtimestamp(stat.st_mtime, timezone.utc).isoformat()
 
-                insert_file(
-                    conn,
-                    filename=name,
-                    full_path=str(full),
-                    mtime=mtime,
-                    size_bytes=stat.st_size,
-                    md5_hash=md5,
-                    scan_date=scan_date,
-                )
-                count += 1
-            except (OSError, PermissionError) as exc:
-                log.warning("Skipping %s: %s", full, exc)
+                    cached = get_cached_file(conn, str(full))
+                    if cached and cached[0] == mtime:
+                        md5 = cached[1]
+                    else:
+                        md5 = md5_file(full)
+
+                    insert_file(
+                        conn,
+                        filename=name,
+                        full_path=str(full),
+                        mtime=mtime,
+                        size_bytes=stat.st_size,
+                        md5_hash=md5,
+                        scan_date=scan_date,
+                    )
+                    count += 1
+                except (OSError, PermissionError) as exc:
+                    log.warning("Skipping %s: %s", full, exc)
+                finally:
+                    progress.advance(task)
 
     conn.commit()
     return count

@@ -8,7 +8,7 @@ from pathlib import Path
 
 from .db import find_duplicates, open_db
 from .scanner import scan_directory
-from .scanner_async import scan_directory_async
+from .scanner_async import DEFAULT_CONCURRENCY, scan_directory_async
 
 DEFAULT_DB = str(Path.home() / "dedup.db")
 
@@ -72,7 +72,7 @@ def main(argv: list[str] | None = None) -> int:
     p_async = sub.add_parser("scan-async", help="Scan a directory recursively using async I/O")
     p_async.add_argument("directory", help="Directory to scan")
     p_async.add_argument("--db", default=DEFAULT_DB, help=f"SQLite database path (default: {DEFAULT_DB})")
-    p_async.add_argument("--concurrency", type=int, default=32, help="Max files to hash in parallel (default: 32)")
+    p_async.add_argument("--concurrency", type=int, default=DEFAULT_CONCURRENCY, help=f"Max files to hash in parallel (default: {DEFAULT_CONCURRENCY})")
     p_async.set_defaults(func=cmd_scan_async)
 
     p_dupes = sub.add_parser("duplicates", help="List duplicate file groups")

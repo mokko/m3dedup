@@ -10,7 +10,7 @@ import pytest
 
 from m3dedup.db import find_duplicates, get_cached_file, insert_file, open_db
 from m3dedup.scanner import md5_file, scan_directory
-from m3dedup.scanner_async import scan_directory_async
+from m3dedup.scanner_async import DEFAULT_CONCURRENCY, scan_directory_async
 from m3dedup.cli import main as cli_main
 
 
@@ -230,6 +230,13 @@ class TestScanDirectoryAsync:
     def test_concurrency_flag(self, sample_dir, conn):
         count = scan_directory_async(sample_dir, conn, concurrency=2)
         assert count == 6
+
+    def test_default_concurrency_is_sensible(self):
+        """Default should be based on CPU count and capped at 32."""
+        import os
+        expected = min(32, (os.cpu_count() or 4) * 4)
+        assert DEFAULT_CONCURRENCY == expected
+        assert 4 <= DEFAULT_CONCURRENCY <= 32
 
 
 # ── CLI tests ─────────────────────────────────────────────────────────

@@ -7,6 +7,7 @@ name = "m3dedup"
 version = "0.1.0"
 description = "Simple file deduplication scanner with SQLite"
 requires-python = ">=3.10"
+dependencies = ["rich"]
 
 [project.optional-dependencies]
 dev = ["pytest"]
