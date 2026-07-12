@@ -8,6 +8,7 @@ from pathlib import Path
 
 from .db import find_duplicates, open_db
 from .scanner import scan_directory
+from .scanner_async import scan_directory_async
 
 DEFAULT_DB = str(Path.home() / "dedup.db")
 
@@ -18,6 +19,18 @@ def cmd_scan(args: argparse.Namespace) -> int:
     print(f"Scanning: {args.directory}")
     print(f"Database: {db_path}")
     count = scan_directory(args.directory, conn)
+    conn.close()
+    print(f"Done. {count} file(s) recorded.")
+    return 0
+
+
+def cmd_scan_async(args: argparse.Namespace) -> int:
+    db_path = args.db
+    conn = open_db(db_path)
+    print(f"Scanning (async): {args.directory}")
+    print(f"Database: {db_path}")
+    print(f"Concurrency: {args.concurrency}")
+    count = scan_directory_async(args.directory, conn, concurrency=args.concurrency)
     conn.close()
     print(f"Done. {count} file(s) recorded.")
     return 0
@@ -55,6 +68,12 @@ def main(argv: list[str] | None = None) -> int:
     p_scan.add_argument("directory", help="Directory to scan")
     p_scan.add_argument("--db", default=DEFAULT_DB, help=f"SQLite database path (default: {DEFAULT_DB})")
     p_scan.set_defaults(func=cmd_scan)
+
+    p_async = sub.add_parser("scan-async", help="Scan a directory recursively using async I/O")
+    p_async.add_argument("directory", help="Directory to scan")
+    p_async.add_argument("--db", default=DEFAULT_DB, help=f"SQLite database path (default: {DEFAULT_DB})")
+    p_async.add_argument("--concurrency", type=int, default=32, help="Max files to hash in parallel (default: 32)")
+    p_async.set_defaults(func=cmd_scan_async)
 
     p_dupes = sub.add_parser("duplicates", help="List duplicate file groups")
     p_dupes.add_argument("--db", default=DEFAULT_DB, help=f"SQLite database path (default: {DEFAULT_DB})")

@@ -22,6 +22,13 @@ Scan a directory (records file metadata into the database):
 python -m m3dedup scan /path/to/directory
 ```
 
+Scan with async I/O (hashes multiple files concurrently — faster on directories with many files):
+
+```bash
+python -m m3dedup scan-async /path/to/directory
+python -m m3dedup scan-async /path/to/directory --concurrency 64
+```
+
 List duplicate file groups (files with identical MD5 hashes):
 
 ```bash
