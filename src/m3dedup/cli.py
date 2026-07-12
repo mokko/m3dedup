@@ -72,6 +72,10 @@ def cmd_scan_async(args: argparse.Namespace) -> int:
 
 def cmd_duplicates(args: argparse.Namespace) -> int:
     console = Console()
+    if not Path(args.db).exists():
+        console.print(f"[red]Error:[/red] Database file does not exist: {args.db}")
+        console.print("[dim]Run 'm3dedup scan <directory>' first to create a database.[/dim]")
+        return 1
     conn = open_db(args.db)
     groups = find_duplicates(conn)
     conn.close()

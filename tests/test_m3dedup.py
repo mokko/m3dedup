@@ -406,6 +406,16 @@ class TestCLI:
         out = capsys.readouterr().out
         assert "No duplicates found" in out
 
+    def test_duplicates_no_db(self, tmp_path, capsys):
+        """Duplicates command should show a helpful error when DB doesn't exist."""
+        db = tmp_path / "nonexistent.db"
+        rc = cli_main(["duplicates", "--db", str(db)])
+        assert rc == 1
+        out = capsys.readouterr().out
+        assert "Database file does not exist" in out
+        assert "scan" in out
+        assert not Path(db).exists()
+
     def test_no_subcommand(self, capsys):
         with pytest.raises(SystemExit):
             cli_main([])
