@@ -8,7 +8,7 @@ import os
 from datetime import datetime, timezone
 from pathlib import Path
 
-from .db import insert_file
+from .db import get_cached_file, insert_file
 
 log = logging.getLogger(__name__)
 
@@ -45,12 +45,19 @@ def scan_directory(directory: str | Path, conn) -> int:
             full = Path(root) / name
             try:
                 stat = full.stat()
-                md5 = md5_file(full)
+                mtime = datetime.fromtimestamp(stat.st_mtime, timezone.utc).isoformat()
+
+                cached = get_cached_file(conn, str(full))
+                if cached and cached[0] == mtime:
+                    md5 = cached[1]
+                else:
+                    md5 = md5_file(full)
+
                 insert_file(
                     conn,
                     filename=name,
                     full_path=str(full),
-                    mtime=datetime.fromtimestamp(stat.st_mtime, timezone.utc).isoformat(),
+                    mtime=mtime,
                     size_bytes=stat.st_size,
                     md5_hash=md5,
                     scan_date=scan_date,

@@ -30,6 +30,18 @@ def open_db(db_path: str | Path) -> sqlite3.Connection:
     return conn
 
 
+def get_cached_file(
+    conn: sqlite3.Connection, full_path: str
+) -> tuple[str, str] | None:
+    """Return (mtime, md5_hash) for *full_path* if it exists in the DB, else None."""
+    row = conn.execute(
+        "SELECT mtime, md5_hash FROM files WHERE full_path = ?", (full_path,)
+    ).fetchone()
+    if row is None:
+        return None
+    return row[0], row[1]
+
+
 def insert_file(
     conn: sqlite3.Connection,
     filename: str,
