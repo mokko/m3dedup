@@ -283,3 +283,50 @@ class TestCLI:
         assert rc == 0
         out = capsys.readouterr().out
         assert "Concurrency: 4" in out
+
+    def test_duplicates_sorted_by_size_desc(self, tmp_path, capsys):
+        """Largest duplicate groups should appear first."""
+        d = tmp_path / "sort_demo"
+        d.mkdir()
+        # Small duplicates (17 bytes)
+        (d / "s1.txt").write_bytes(b"small duplicate")
+        (d / "s2.txt").write_bytes(b"small duplicate")
+        # Big duplicates (1 MB)
+        big = b"x" * 1_048_576
+        (d / "b1.bin").write_bytes(big)
+        (d / "b2.bin").write_bytes(big)
+
+        db = tmp_path / "sort.db"
+        cli_main(["scan", str(d), "--db", str(db)])
+        cli_main(["duplicates", "--db", str(db)])
+        out = capsys.readouterr().out
+
+        group1_pos = out.find("Group 1")
+        group2_pos = out.find("Group 2")
+        assert group1_pos < group2_pos
+        # Group 1 should mention 1.0 MB, Group 2 should mention B
+        assert "1.0 MB" in out[group1_pos:group2_pos]
+        assert "B" in out[group2_pos:]
+
+    def test_duplicates_human_readable_size(self, tmp_path, capsys):
+        """Sizes should be human-readable, not raw bytes."""
+        d = tmp_path / "size_demo"
+        d.mkdir()
+        (d / "a.txt").write_bytes(b"identical")
+        (d / "b.txt").write_bytes(b"identical")
+
+        db = tmp_path / "size.db"
+        cli_main(["scan", str(d), "--db", str(db)])
+        cli_main(["duplicates", "--db", str(db)])
+        out = capsys.readouterr().out
+        # 9 bytes should show as "9 bytes", not "9 B"
+        assert "9 bytes" in out
+        assert "wasted" in out
+
+    def test_duplicates_shows_wasted_total(self, sample_dir, tmp_path, capsys):
+        """Output should show total wasted space."""
+        db = tmp_path / "waste.db"
+        cli_main(["scan", str(sample_dir), "--db", str(db)])
+        cli_main(["duplicates", "--db", str(db)])
+        out = capsys.readouterr().out
+        assert "wasted" in out

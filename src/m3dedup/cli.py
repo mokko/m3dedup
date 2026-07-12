@@ -6,11 +6,27 @@ import argparse
 import sys
 from pathlib import Path
 
+from rich.console import Console
+
 from .db import find_duplicates, open_db
 from .scanner import scan_directory
 from .scanner_async import DEFAULT_CONCURRENCY, scan_directory_async
 
 DEFAULT_DB = str(Path.home() / "dedup.db")
+
+_UNITS = ["B", "KB", "MB", "GB", "TB", "PB"]
+
+
+def human_size(n: int) -> str:
+    """Format bytes as a human-readable string."""
+    size = float(n)
+    for unit in _UNITS:
+        if size < 1024 or unit == _UNITS[-1]:
+            if unit == "B":
+                return f"{int(size)} bytes"
+            return f"{size:.1f} {unit}"
+        size /= 1024
+    return f"{size:.1f} PB"
 
 
 def cmd_scan(args: argparse.Namespace) -> int:
@@ -37,23 +53,38 @@ def cmd_scan_async(args: argparse.Namespace) -> int:
 
 
 def cmd_duplicates(args: argparse.Namespace) -> int:
+    console = Console()
     conn = open_db(args.db)
     groups = find_duplicates(conn)
     conn.close()
 
     if not groups:
-        print("No duplicates found.")
+        console.print("[green]No duplicates found.[/green]")
         return 0
 
+    # Sort groups by file size descending (biggest first)
+    groups.sort(key=lambda g: g[0]["size_bytes"], reverse=True)
+
     total_dupes = 0
+    total_waste = 0
     for i, group in enumerate(groups, 1):
         size = group[0]["size_bytes"]
-        print(f"\nGroup {i} — {len(group)} files, {size:,} bytes each:")
-        for f in group:
-            print(f"  {f['full_path']}")
+        waste = size * (len(group) - 1)
+        total_waste += waste
         total_dupes += len(group)
+        console.print(
+            f"\n[bold cyan]Group {i}[/bold cyan] — "
+            f"{len(group)} files, [bold]{human_size(size)}[/bold] each, "
+            f"[dim]wasted: {human_size(waste)}[/dim]"
+        )
+        for f in group:
+            console.print(f"  [dim]{f['full_path']}[/dim]")
 
-    print(f"\n{len(groups)} duplicate group(s), {total_dupes} file(s) total.")
+    console.print(
+        f"\n[bold]{len(groups)}[/bold] duplicate group(s), "
+        f"[bold]{total_dupes}[/bold] file(s) total, "
+        f"[bold red]{human_size(total_waste)}[/bold red] wasted."
+    )
     return 0
 
 
