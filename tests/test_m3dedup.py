@@ -330,18 +330,18 @@ class TestScanDirectoryAsync:
 
     def test_rescan_skips_unchanged_mtime(self, sample_dir, conn):
         scan_directory_async(sample_dir, conn)
-        import m3dedup.scanner_async as async_mod
-        original = async_mod.md5_partial_file
+        import m3dedup.scanner as scanner_mod
+        original = scanner_mod.md5_partial_file
         call_count = 0
         def spy(path, size):
             nonlocal call_count
             call_count += 1
             return original(path, size)
-        async_mod.md5_partial_file = spy
+        scanner_mod.md5_partial_file = spy
         try:
             scan_directory_async(sample_dir, conn)
         finally:
-            async_mod.md5_partial_file = original
+            scanner_mod.md5_partial_file = original
         assert call_count == 0
 
     def test_concurrency_flag(self, sample_dir, conn):

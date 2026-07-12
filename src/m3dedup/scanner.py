@@ -9,6 +9,7 @@ Two-phase approach for speed:
 
 from __future__ import annotations
 
+import asyncio
 import hashlib
 import logging
 import os
@@ -63,6 +64,67 @@ def md5_partial_file(path: Path, size: int) -> str:
     return h.hexdigest()
 
 
+def _compute_hashes(full: Path, stat, conn) -> tuple[str, str, str]:
+    """
+    Core hash resolution logic (synchronous).
+
+    Returns (mtime, partial_hash, full_hash). The full_hash may be ""
+    if it needs to be resolved later in the collision phase.
+
+    Cases:
+      1. mtime unchanged and partial cached → reuse both
+      2. mtime unchanged but no partial (old DB) → compute partial, reuse full
+      3. New or modified file → compute partial; full = partial for small
+         files, "" for large files (resolved in phase 2)
+    """
+    mtime = datetime.fromtimestamp(stat.st_mtime, timezone.utc).isoformat()
+    cached = get_cached_file(conn, str(full))
+
+    if cached and cached[0] == mtime and cached[2] is not None:
+        # Case 1: reuse both cached hashes
+        return mtime, cached[2], cached[1]
+    elif cached and cached[0] == mtime:
+        # Case 2: old DB without partial — compute partial, reuse full
+        partial = md5_partial_file(full, stat.st_size)
+        return mtime, partial, cached[1]
+    else:
+        # Case 3: new or modified file
+        partial = md5_partial_file(full, stat.st_size)
+        if stat.st_size <= PARTIAL_THRESHOLD:
+            full_hash = partial
+        else:
+            full_hash = ""  # will be resolved in phase 2
+        return mtime, partial, full_hash
+
+
+def resolve_hashes(full: Path, stat, conn) -> tuple[str, str]:
+    """Synchronous wrapper: returns (partial_hash, full_hash)."""
+    _, partial, full_hash = _compute_hashes(full, stat, conn)
+    return partial, full_hash
+
+
+async def resolve_hashes_async(full: Path, stat, conn) -> tuple[str, str]:
+    """Async wrapper: offloads hashing to a thread, DB lookup stays on main thread."""
+    mtime = datetime.fromtimestamp(stat.st_mtime, timezone.utc).isoformat()
+    cached = get_cached_file(conn, str(full))
+
+    if cached and cached[0] == mtime and cached[2] is not None:
+        # Case 1: reuse both cached hashes — no I/O needed
+        return cached[2], cached[1]
+    elif cached and cached[0] == mtime:
+        # Case 2: old DB without partial — compute partial in thread
+        partial = await asyncio.to_thread(md5_partial_file, full, stat.st_size)
+        return partial, cached[1]
+    else:
+        # Case 3: new or modified file — compute partial in thread
+        partial = await asyncio.to_thread(md5_partial_file, full, stat.st_size)
+        if stat.st_size <= PARTIAL_THRESHOLD:
+            full_hash = partial
+        else:
+            full_hash = ""
+        return partial, full_hash
+
+
 def scan_directory(directory: str | Path, conn) -> int:
     """
     Scan *directory* recursively and insert every file into the database.
@@ -91,24 +153,7 @@ def scan_directory(directory: str | Path, conn) -> int:
                 try:
                     stat = full.stat()
                     mtime = datetime.fromtimestamp(stat.st_mtime, timezone.utc).isoformat()
-
-                    cached = get_cached_file(conn, str(full))
-                    if cached and cached[0] == mtime and cached[2] is not None:
-                        # mtime unchanged and we have a partial hash — reuse both
-                        partial = cached[2]
-                        full_hash = cached[1]
-                    elif cached and cached[0] == mtime:
-                        # mtime unchanged but no partial hash (old DB) — compute partial
-                        partial = md5_partial_file(full, stat.st_size)
-                        full_hash = cached[1]
-                    else:
-                        # File is new or modified — compute partial hash
-                        partial = md5_partial_file(full, stat.st_size)
-                        # For small files, partial == full hash
-                        if stat.st_size <= PARTIAL_THRESHOLD:
-                            full_hash = partial
-                        else:
-                            full_hash = ""  # will be resolved in phase 2
+                    partial, full_hash = resolve_hashes(full, stat, conn)
 
                     insert_file(
                         conn,
@@ -151,13 +196,7 @@ def resolve_collisions(conn) -> int:
     for group in groups:
         for f in group:
             # Skip files that already have a full hash
-            # (small files where partial == full, or cached from prior resolve)
-            if f["md5_hash"] and f["md5_hash"] != "":
-                # Verify: if full hash is set and equals partial, it might
-                # still need a real full hash for large files
-                if f["size_bytes"] <= PARTIAL_THRESHOLD:
-                    continue
-                # If we already have a non-empty full hash, skip
+            if f["md5_hash"]:
                 continue
 
             path = Path(f["full_path"])
@@ -168,4 +207,5 @@ def resolve_collisions(conn) -> int:
             except (OSError, PermissionError) as exc:
                 log.warning("Skipping %s: %s", path, exc)
 
+    conn.commit()
     return resolved

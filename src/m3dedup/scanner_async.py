@@ -18,16 +18,9 @@ import os
 from datetime import datetime, timezone
 from pathlib import Path
 
-from .db import (
-    PARTIAL_THRESHOLD,
-    add_scanned_dir,
-    find_partial_collision_groups,
-    get_cached_file,
-    insert_file,
-    update_full_hash,
-)
+from .db import add_scanned_dir, insert_file
 from .progress import count_files, make_progress
-from .scanner import CHUNK_SIZE, md5_file, md5_partial_file, resolve_collisions
+from .scanner import resolve_collisions, resolve_hashes_async
 
 log = logging.getLogger(__name__)
 
@@ -45,20 +38,7 @@ async def _scan_one(
         try:
             stat = full.stat()
             mtime = datetime.fromtimestamp(stat.st_mtime, timezone.utc).isoformat()
-
-            cached = get_cached_file(conn, str(full))
-            if cached and cached[0] == mtime and cached[2] is not None:
-                partial = cached[2]
-                full_hash = cached[1]
-            elif cached and cached[0] == mtime:
-                partial = await asyncio.to_thread(md5_partial_file, full, stat.st_size)
-                full_hash = cached[1]
-            else:
-                partial = await asyncio.to_thread(md5_partial_file, full, stat.st_size)
-                if stat.st_size <= PARTIAL_THRESHOLD:
-                    full_hash = partial
-                else:
-                    full_hash = ""
+            partial, full_hash = await resolve_hashes_async(full, stat, conn)
 
             insert_file(
                 conn,

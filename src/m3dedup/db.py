@@ -92,7 +92,6 @@ def insert_file(
         """,
         (filename, full_path, scan_date, mtime, size_bytes, md5_hash, md5_partial),
     )
-    conn.commit()
 
 
 def update_full_hash(
@@ -103,7 +102,6 @@ def update_full_hash(
         "UPDATE files SET md5_hash = ? WHERE full_path = ?",
         (md5_hash, full_path),
     )
-    conn.commit()
 
 
 def find_partial_collision_groups(conn: sqlite3.Connection) -> list[list[dict]]:

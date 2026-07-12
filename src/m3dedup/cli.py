@@ -19,8 +19,6 @@ _UNITS = ["B", "KB", "MB", "GB", "TB", "PB"]
 
 def _open_db_with_prompt(db_path: str):
     """Open the DB, prompting for confirmation if the file doesn't exist yet."""
-    from .db import open_db
-
     if not Path(db_path).exists():
         console = Console()
         console.print(f"[yellow]Database file does not exist:[/yellow] {db_path}")
