@@ -9,9 +9,11 @@ from pathlib import Path
 import pytest
 
 from m3dedup.db import (
+    add_scanned_dir,
     find_duplicates,
     find_partial_collision_groups,
     get_cached_file,
+    get_scanned_dirs,
     insert_file,
     open_db,
 )
@@ -450,3 +452,91 @@ class TestCLI:
         cli_main(["duplicates", "--db", str(db)])
         out = capsys.readouterr().out
         assert "wasted" in out
+
+
+# ── scanned_dirs tests ───────────────────────────────────────────────
+
+class TestScannedDirs:
+    def test_add_and_get_scanned_dir(self, conn):
+        add_scanned_dir(conn, "/home/user/docs", "2025-01-01T00:00:00+00:00")
+        dirs = get_scanned_dirs(conn)
+        assert len(dirs) == 1
+        assert dirs[0] == {"full_path": "/home/user/docs", "scan_date": "2025-01-01T00:00:00+00:00"}
+
+    def test_add_upsert(self, conn):
+        add_scanned_dir(conn, "/home/user/docs", "2025-01-01T00:00:00+00:00")
+        add_scanned_dir(conn, "/home/user/docs", "2025-06-01T00:00:00+00:00")
+        dirs = get_scanned_dirs(conn)
+        assert len(dirs) == 1
+        assert dirs[0]["scan_date"] == "2025-06-01T00:00:00+00:00"
+
+    def test_get_empty(self, conn):
+        assert get_scanned_dirs(conn) == []
+
+    def test_scan_records_directory(self, sample_dir, conn):
+        scan_directory(sample_dir, conn)
+        dirs = get_scanned_dirs(conn)
+        assert len(dirs) == 1
+        assert str(sample_dir) in dirs[0]["full_path"]
+
+    def test_scan_async_records_directory(self, sample_dir, conn):
+        scan_directory_async(sample_dir, conn)
+        dirs = get_scanned_dirs(conn)
+        assert len(dirs) == 1
+        assert str(sample_dir) in dirs[0]["full_path"]
+
+    def test_multiple_dirs_recorded(self, tmp_path, conn):
+        d1 = tmp_path / "dir1"
+        d2 = tmp_path / "dir2"
+        d1.mkdir()
+        d2.mkdir()
+        (d1 / "a.txt").write_bytes(b"aaa")
+        (d2 / "b.txt").write_bytes(b"bbb")
+        scan_directory(d1, conn)
+        scan_directory(d2, conn)
+        dirs = get_scanned_dirs(conn)
+        assert len(dirs) == 2
+
+
+# ── rescan CLI tests ──────────────────────────────────────────────────
+
+class TestRescanCLI:
+    def test_rescan_no_dirs(self, tmp_path, capsys):
+        db = tmp_path / "empty.db"
+        open_db(db).close()
+        rc = cli_main(["rescan", "--db", str(db)])
+        assert rc == 0
+        out = capsys.readouterr().out
+        assert "No directories" in out
+
+    def test_rescan_after_scan(self, sample_dir, tmp_path, capsys):
+        db = tmp_path / "rescan.db"
+        cli_main(["scan", str(sample_dir), "--db", str(db)])
+        rc = cli_main(["rescan", "--db", str(db)])
+        assert rc == 0
+        out = capsys.readouterr().out
+        assert "6 file(s) recorded" in out
+
+    def test_rescan_async_flag(self, sample_dir, tmp_path, capsys):
+        db = tmp_path / "rescan_async.db"
+        cli_main(["scan", str(sample_dir), "--db", str(db)])
+        rc = cli_main(["rescan", "--async", "--db", str(db)])
+        assert rc == 0
+        out = capsys.readouterr().out
+        assert "6 file(s) recorded" in out
+
+    def test_rescan_multiple_dirs(self, tmp_path, capsys):
+        d1 = tmp_path / "dir1"
+        d2 = tmp_path / "dir2"
+        d1.mkdir()
+        d2.mkdir()
+        (d1 / "a.txt").write_bytes(b"aaa")
+        (d2 / "b.txt").write_bytes(b"bbb")
+        db = tmp_path / "multi.db"
+        cli_main(["scan", str(d1), "--db", str(db)])
+        cli_main(["scan", str(d2), "--db", str(db)])
+        rc = cli_main(["rescan", "--db", str(db)])
+        assert rc == 0
+        out = capsys.readouterr().out
+        assert "2 directory(ies)" in out
+        assert "2 file(s) recorded across 2" in out

@@ -20,6 +20,7 @@ from pathlib import Path
 
 from .db import (
     PARTIAL_THRESHOLD,
+    add_scanned_dir,
     find_partial_collision_groups,
     get_cached_file,
     insert_file,
@@ -79,7 +80,7 @@ async def _scan_directory_async(
     directory: Path,
     conn,
     concurrency: int,
-) -> int:
+) -> tuple[int, str]:
     scan_date = datetime.now(timezone.utc).isoformat()
     sem = asyncio.Semaphore(concurrency)
     total = count_files(directory)
@@ -103,7 +104,7 @@ async def _scan_directory_async(
             progress.advance(task)
 
     conn.commit()
-    return count
+    return count, scan_date
 
 
 def scan_directory_async(
@@ -125,9 +126,12 @@ def scan_directory_async(
     if not directory.is_dir():
         raise NotADirectoryError(f"Not a directory: {directory}")
 
-    count = asyncio.run(_scan_directory_async(directory, conn, concurrency))
+    count, scan_date = asyncio.run(_scan_directory_async(directory, conn, concurrency))
 
     # Phase 2: resolve collisions with full hashes
     resolve_collisions(conn)
+
+    # Record this directory as scanned
+    add_scanned_dir(conn, str(directory), scan_date)
 
     return count

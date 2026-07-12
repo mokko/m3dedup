@@ -35,6 +35,13 @@ python -m m3dedup scan-async /path/to/directory
 python -m m3dedup scan-async /path/to/directory --concurrency 64
 ```
 
+Re-scan all previously scanned directories:
+
+```bash
+python -m m3dedup rescan
+python -m m3dedup rescan --async
+```
+
 List duplicate file groups (files with identical MD5 hashes):
 
 ```bash

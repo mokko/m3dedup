@@ -17,6 +17,7 @@ from pathlib import Path
 
 from .db import (
     PARTIAL_THRESHOLD,
+    add_scanned_dir,
     find_partial_collision_groups,
     get_cached_file,
     insert_file,
@@ -129,6 +130,9 @@ def scan_directory(directory: str | Path, conn) -> int:
 
     # ── Phase 2: resolve collisions with full hashes ─────────────────
     resolve_collisions(conn)
+
+    # Record this directory as scanned
+    add_scanned_dir(conn, str(directory), scan_date)
 
     return count
 

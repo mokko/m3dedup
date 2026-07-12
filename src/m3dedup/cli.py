@@ -8,7 +8,7 @@ from pathlib import Path
 
 from rich.console import Console
 
-from .db import find_duplicates, open_db
+from .db import find_duplicates, get_scanned_dirs, open_db
 from .scanner import scan_directory
 from .scanner_async import DEFAULT_CONCURRENCY, scan_directory_async
 
@@ -88,6 +88,41 @@ def cmd_duplicates(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_rescan(args: argparse.Namespace) -> int:
+    console = Console()
+    conn = open_db(args.db)
+    dirs = get_scanned_dirs(conn)
+
+    if not dirs:
+        console.print("[yellow]No directories have been scanned yet.[/yellow]")
+        conn.close()
+        return 0
+
+    console.print(f"[bold]Rescanning {len(dirs)} directory(ies):[/bold]")
+    for d in dirs:
+        console.print(f"  [dim]{d['full_path']}[/dim]")
+
+    if args.async_mode:
+        scanner = lambda directory: scan_directory_async(directory, conn, concurrency=args.concurrency)
+    else:
+        scanner = lambda directory: scan_directory(directory, conn)
+
+    total_count = 0
+    for d in dirs:
+        path = d["full_path"]
+        console.print(f"\nScanning: {path}")
+        try:
+            count = scanner(path)
+            total_count += count
+            console.print(f"  {count} file(s) recorded.")
+        except NotADirectoryError as exc:
+            console.print(f"  [red]Skipping: {exc}[/red]")
+
+    conn.close()
+    console.print(f"\n[bold]Done. {total_count} file(s) recorded across {len(dirs)} director(ies).[/bold]")
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
         prog="m3dedup",
@@ -109,6 +144,12 @@ def main(argv: list[str] | None = None) -> int:
     p_dupes = sub.add_parser("duplicates", help="List duplicate file groups")
     p_dupes.add_argument("--db", default=DEFAULT_DB, help=f"SQLite database path (default: {DEFAULT_DB})")
     p_dupes.set_defaults(func=cmd_duplicates)
+
+    p_rescan = sub.add_parser("rescan", help="Re-scan all previously scanned directories")
+    p_rescan.add_argument("--db", default=DEFAULT_DB, help=f"SQLite database path (default: {DEFAULT_DB})")
+    p_rescan.add_argument("--async", dest="async_mode", action="store_true", help="Use async scanner")
+    p_rescan.add_argument("--concurrency", type=int, default=DEFAULT_CONCURRENCY, help=f"Max files to hash in parallel (default: {DEFAULT_CONCURRENCY})")
+    p_rescan.set_defaults(func=cmd_rescan)
 
     args = parser.parse_args(argv)
     return args.func(args)

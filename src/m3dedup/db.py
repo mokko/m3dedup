@@ -22,6 +22,12 @@ CREATE INDEX IF NOT EXISTS idx_md5_hash    ON files(md5_hash);
 CREATE INDEX IF NOT EXISTS idx_md5_partial  ON files(md5_partial);
 CREATE INDEX IF NOT EXISTS idx_size        ON files(size_bytes);
 CREATE UNIQUE INDEX IF NOT EXISTS idx_full_path ON files(full_path);
+
+CREATE TABLE IF NOT EXISTS scanned_dirs (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    full_path   TEXT    NOT NULL UNIQUE,
+    scan_date   TEXT    NOT NULL
+);
 """
 
 # For files smaller than this, partial hash is skipped (just use full hash).
@@ -166,3 +172,29 @@ def find_duplicates(conn: sqlite3.Connection) -> list[list[dict]]:
             }
         )
     return list(groups.values())
+
+
+def add_scanned_dir(
+    conn: sqlite3.Connection, full_path: str, scan_date: str | None = None
+) -> None:
+    """Record a directory as scanned (upsert by full_path)."""
+    if scan_date is None:
+        scan_date = datetime.now(timezone.utc).isoformat()
+    conn.execute(
+        """
+        INSERT INTO scanned_dirs (full_path, scan_date)
+        VALUES (?, ?)
+        ON CONFLICT(full_path) DO UPDATE SET
+            scan_date = excluded.scan_date
+        """,
+        (full_path, scan_date),
+    )
+    conn.commit()
+
+
+def get_scanned_dirs(conn: sqlite3.Connection) -> list[dict]:
+    """Return all scanned directories, ordered by most recent scan first."""
+    rows = conn.execute(
+        "SELECT full_path, scan_date FROM scanned_dirs ORDER BY scan_date DESC"
+    ).fetchall()
+    return [{"full_path": r[0], "scan_date": r[1]} for r in rows]
