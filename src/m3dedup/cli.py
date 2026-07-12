@@ -46,9 +46,15 @@ def cmd_scan(args: argparse.Namespace) -> int:
     conn = _open_db_with_prompt(db_path)
     if conn is None:
         return 1
-    print(f"Scanning: {args.directory}")
-    print(f"Database: {db_path}")
-    count = scan_directory(args.directory, conn)
+    if args.async_mode:
+        print(f"Scanning (async): {args.directory}")
+        print(f"Database: {db_path}")
+        print(f"Concurrency: {args.concurrency}")
+        count = scan_directory_async(args.directory, conn, concurrency=args.concurrency)
+    else:
+        print(f"Scanning: {args.directory}")
+        print(f"Database: {db_path}")
+        count = scan_directory(args.directory, conn)
     conn.close()
     print(f"Done. {count} file(s) recorded.")
     return 0
@@ -155,9 +161,11 @@ def main(argv: list[str] | None = None) -> int:
     p_scan = sub.add_parser("scan", help="Scan a directory recursively")
     p_scan.add_argument("directory", help="Directory to scan")
     p_scan.add_argument("--db", default=DEFAULT_DB, help=f"SQLite database path (default: {DEFAULT_DB})")
+    p_scan.add_argument("--async", dest="async_mode", action="store_true", help="Use async scanner for concurrent hashing")
+    p_scan.add_argument("--concurrency", type=int, default=DEFAULT_CONCURRENCY, help=f"Max files to hash in parallel (default: {DEFAULT_CONCURRENCY})")
     p_scan.set_defaults(func=cmd_scan)
 
-    p_async = sub.add_parser("scan-async", help="Scan a directory recursively using async I/O")
+    p_async = sub.add_parser("scan-async", help="Alias for 'scan --async'")
     p_async.add_argument("directory", help="Directory to scan")
     p_async.add_argument("--db", default=DEFAULT_DB, help=f"SQLite database path (default: {DEFAULT_DB})")
     p_async.add_argument("--concurrency", type=int, default=DEFAULT_CONCURRENCY, help=f"Max files to hash in parallel (default: {DEFAULT_CONCURRENCY})")

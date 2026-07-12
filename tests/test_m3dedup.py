@@ -389,6 +389,15 @@ class TestCLI:
         assert "6 file(s) recorded" in out
 
     @patch("builtins.input", side_effect=["y"])
+    def test_scan_with_async_flag(self, mock_input, sample_dir, tmp_path, capsys):
+        db = tmp_path / "cli_scan_async.db"
+        rc = cli_main(["scan", str(sample_dir), "--async", "--db", str(db)])
+        assert rc == 0
+        out = capsys.readouterr().out
+        assert "Scanning (async)" in out
+        assert "6 file(s) recorded" in out
+
+    @patch("builtins.input", side_effect=["y"])
     def test_duplicates_command(self, mock_input, sample_dir, tmp_path, capsys):
         db = tmp_path / "cli_dupes.db"
         cli_main(["scan", str(sample_dir), "--db", str(db)])

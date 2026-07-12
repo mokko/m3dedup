@@ -31,11 +31,13 @@ python -m m3dedup scan /path/to/directory
 Scan with async I/O (hashes multiple files concurrently — faster on directories with many files):
 
 ```bash
-python -m m3dedup scan-async /path/to/directory
-python -m m3dedup scan-async /path/to/directory --concurrency 64
+python -m m3dedup scan /path/to/directory --async
+python -m m3dedup scan /path/to/directory --async --concurrency 64
 ```
 
 The `--concurrency` flag is optional. If omitted, it defaults to `min(32, CPU_threads × 4)`.
+
+> `scan-async` is kept as a backwards-compatible alias for `scan --async`.
 
 Re-scan all previously scanned directories:
 
