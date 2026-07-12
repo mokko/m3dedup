@@ -5,6 +5,7 @@ from __future__ import annotations
 import hashlib
 import time
 from pathlib import Path
+from unittest.mock import patch
 
 import pytest
 
@@ -371,21 +372,24 @@ class TestScanDirectoryAsync:
 # ── CLI tests ─────────────────────────────────────────────────────────
 
 class TestCLI:
-    def test_scan_command(self, sample_dir, tmp_path, capsys):
+    @patch("builtins.input", side_effect=["y"])
+    def test_scan_command(self, mock_input, sample_dir, tmp_path, capsys):
         db = tmp_path / "cli.db"
         rc = cli_main(["scan", str(sample_dir), "--db", str(db)])
         assert rc == 0
         out = capsys.readouterr().out
         assert "6 file(s) recorded" in out
 
-    def test_scan_async_command(self, sample_dir, tmp_path, capsys):
+    @patch("builtins.input", side_effect=["y"])
+    def test_scan_async_command(self, mock_input, sample_dir, tmp_path, capsys):
         db = tmp_path / "cli_async.db"
         rc = cli_main(["scan-async", str(sample_dir), "--db", str(db)])
         assert rc == 0
         out = capsys.readouterr().out
         assert "6 file(s) recorded" in out
 
-    def test_duplicates_command(self, sample_dir, tmp_path, capsys):
+    @patch("builtins.input", side_effect=["y"])
+    def test_duplicates_command(self, mock_input, sample_dir, tmp_path, capsys):
         db = tmp_path / "cli_dupes.db"
         cli_main(["scan", str(sample_dir), "--db", str(db)])
         rc = cli_main(["duplicates", "--db", str(db)])
@@ -406,14 +410,16 @@ class TestCLI:
         with pytest.raises(SystemExit):
             cli_main([])
 
-    def test_scan_async_concurrency_flag(self, sample_dir, tmp_path, capsys):
+    @patch("builtins.input", side_effect=["y"])
+    def test_scan_async_concurrency_flag(self, mock_input, sample_dir, tmp_path, capsys):
         db = tmp_path / "cli_conc.db"
         rc = cli_main(["scan-async", str(sample_dir), "--db", str(db), "--concurrency", "4"])
         assert rc == 0
         out = capsys.readouterr().out
         assert "Concurrency: 4" in out
 
-    def test_duplicates_sorted_by_size_desc(self, tmp_path, capsys):
+    @patch("builtins.input", side_effect=["y"])
+    def test_duplicates_sorted_by_size_desc(self, mock_input, tmp_path, capsys):
         d = tmp_path / "sort_demo"
         d.mkdir()
         (d / "s1.txt").write_bytes(b"small duplicate")
@@ -433,7 +439,8 @@ class TestCLI:
         assert "1.0 MB" in out[group1_pos:group2_pos]
         assert "bytes" in out[group2_pos:]
 
-    def test_duplicates_human_readable_size(self, tmp_path, capsys):
+    @patch("builtins.input", side_effect=["y"])
+    def test_duplicates_human_readable_size(self, mock_input, tmp_path, capsys):
         d = tmp_path / "size_demo"
         d.mkdir()
         (d / "a.txt").write_bytes(b"identical")
@@ -446,7 +453,8 @@ class TestCLI:
         assert "9 bytes" in out
         assert "wasted" in out
 
-    def test_duplicates_shows_wasted_total(self, sample_dir, tmp_path, capsys):
+    @patch("builtins.input", side_effect=["y"])
+    def test_duplicates_shows_wasted_total(self, mock_input, sample_dir, tmp_path, capsys):
         db = tmp_path / "waste.db"
         cli_main(["scan", str(sample_dir), "--db", str(db)])
         cli_main(["duplicates", "--db", str(db)])
@@ -501,7 +509,8 @@ class TestScannedDirs:
 # ── rescan CLI tests ──────────────────────────────────────────────────
 
 class TestRescanCLI:
-    def test_rescan_no_dirs(self, tmp_path, capsys):
+    @patch("builtins.input", side_effect=["y"])
+    def test_rescan_no_dirs(self, mock_input, tmp_path, capsys):
         db = tmp_path / "empty.db"
         open_db(db).close()
         rc = cli_main(["rescan", "--db", str(db)])
@@ -509,7 +518,8 @@ class TestRescanCLI:
         out = capsys.readouterr().out
         assert "No directories" in out
 
-    def test_rescan_after_scan(self, sample_dir, tmp_path, capsys):
+    @patch("builtins.input", side_effect=["y"])
+    def test_rescan_after_scan(self, mock_input, sample_dir, tmp_path, capsys):
         db = tmp_path / "rescan.db"
         cli_main(["scan", str(sample_dir), "--db", str(db)])
         rc = cli_main(["rescan", "--db", str(db)])
@@ -517,7 +527,8 @@ class TestRescanCLI:
         out = capsys.readouterr().out
         assert "6 file(s) recorded" in out
 
-    def test_rescan_async_flag(self, sample_dir, tmp_path, capsys):
+    @patch("builtins.input", side_effect=["y", "y"])
+    def test_rescan_async_flag(self, mock_input, sample_dir, tmp_path, capsys):
         db = tmp_path / "rescan_async.db"
         cli_main(["scan", str(sample_dir), "--db", str(db)])
         rc = cli_main(["rescan", "--async", "--db", str(db)])
@@ -525,7 +536,8 @@ class TestRescanCLI:
         out = capsys.readouterr().out
         assert "6 file(s) recorded" in out
 
-    def test_rescan_multiple_dirs(self, tmp_path, capsys):
+    @patch("builtins.input", side_effect=["y", "y"])
+    def test_rescan_multiple_dirs(self, mock_input, tmp_path, capsys):
         d1 = tmp_path / "dir1"
         d2 = tmp_path / "dir2"
         d1.mkdir()
@@ -540,3 +552,23 @@ class TestRescanCLI:
         out = capsys.readouterr().out
         assert "2 directory(ies)" in out
         assert "2 file(s) recorded across 2" in out
+
+    @patch("builtins.input", side_effect=["n"])
+    def test_rescan_decline_new_db(self, mock_input, tmp_path, capsys):
+        """Rescan should abort when user declines creating a new DB."""
+        db = tmp_path / "nonexistent.db"
+        rc = cli_main(["rescan", "--db", str(db)])
+        assert rc == 1
+        out = capsys.readouterr().out
+        assert "Aborted" in out
+        assert not Path(db).exists()
+
+    @patch("builtins.input", side_effect=["n"])
+    def test_scan_decline_new_db(self, mock_input, sample_dir, tmp_path, capsys):
+        """Scan should abort when user declines creating a new DB."""
+        db = tmp_path / "nonexistent.db"
+        rc = cli_main(["scan", str(sample_dir), "--db", str(db)])
+        assert rc == 1
+        out = capsys.readouterr().out
+        assert "Aborted" in out
+        assert not Path(db).exists()

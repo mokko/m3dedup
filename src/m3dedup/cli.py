@@ -17,6 +17,20 @@ DEFAULT_DB = str(Path.home() / "dedup.db")
 _UNITS = ["B", "KB", "MB", "GB", "TB", "PB"]
 
 
+def _open_db_with_prompt(db_path: str):
+    """Open the DB, prompting for confirmation if the file doesn't exist yet."""
+    from .db import open_db
+
+    if not Path(db_path).exists():
+        console = Console()
+        console.print(f"[yellow]Database file does not exist:[/yellow] {db_path}")
+        response = input("Create a new database? [y/N] ").strip().lower()
+        if response != "y":
+            console.print("[red]Aborted.[/red]")
+            return None
+    return open_db(db_path)
+
+
 def human_size(n: int) -> str:
     """Format bytes as a human-readable string."""
     size = float(n)
@@ -31,7 +45,9 @@ def human_size(n: int) -> str:
 
 def cmd_scan(args: argparse.Namespace) -> int:
     db_path = args.db
-    conn = open_db(db_path)
+    conn = _open_db_with_prompt(db_path)
+    if conn is None:
+        return 1
     print(f"Scanning: {args.directory}")
     print(f"Database: {db_path}")
     count = scan_directory(args.directory, conn)
@@ -42,7 +58,9 @@ def cmd_scan(args: argparse.Namespace) -> int:
 
 def cmd_scan_async(args: argparse.Namespace) -> int:
     db_path = args.db
-    conn = open_db(db_path)
+    conn = _open_db_with_prompt(db_path)
+    if conn is None:
+        return 1
     print(f"Scanning (async): {args.directory}")
     print(f"Database: {db_path}")
     print(f"Concurrency: {args.concurrency}")
@@ -90,7 +108,9 @@ def cmd_duplicates(args: argparse.Namespace) -> int:
 
 def cmd_rescan(args: argparse.Namespace) -> int:
     console = Console()
-    conn = open_db(args.db)
+    conn = _open_db_with_prompt(args.db)
+    if conn is None:
+        return 1
     dirs = get_scanned_dirs(conn)
 
     if not dirs:
