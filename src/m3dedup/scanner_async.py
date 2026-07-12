@@ -1,39 +1,36 @@
 """Async file scanning and hashing logic.
 
-Uses asyncio to hash multiple files concurrently. File hashing is I/O-bound,
-so each file is hashed in a thread via ``asyncio.to_thread``. A semaphore
-limits how many files are open at once. SQLite writes happen on the main
-thread after each file is hashed.
+Two-phase approach (same as the sync scanner):
+  1. Partial hash: hash only the first + last 4 KB of large files.
+  2. Resolve: for files sharing the same (size, partial hash), compute
+     the full MD5 to confirm true duplicates.
+
+File hashing is I/O-bound, so each file is hashed in a thread via
+``asyncio.to_thread``. A semaphore limits how many files are open at once.
+SQLite writes happen on the main thread after each file is hashed.
 """
 
 from __future__ import annotations
 
 import asyncio
-import hashlib
 import logging
 import os
 from datetime import datetime, timezone
 from pathlib import Path
 
-from .db import get_cached_file, insert_file
+from .db import (
+    PARTIAL_THRESHOLD,
+    find_partial_collision_groups,
+    get_cached_file,
+    insert_file,
+    update_full_hash,
+)
 from .progress import count_files, make_progress
-from .scanner import CHUNK_SIZE
+from .scanner import CHUNK_SIZE, md5_file, md5_partial_file, resolve_collisions
 
 log = logging.getLogger(__name__)
 
 DEFAULT_CONCURRENCY = min(32, (os.cpu_count() or 4) * 4)
-
-
-def _md5_file(path: Path) -> str:
-    """Return the MD5 hex digest of a file, read in 64 KB chunks."""
-    h = hashlib.md5()
-    with open(path, "rb") as f:
-        while True:
-            chunk = f.read(CHUNK_SIZE)
-            if not chunk:
-                break
-            h.update(chunk)
-    return h.hexdigest()
 
 
 async def _scan_one(
@@ -42,17 +39,25 @@ async def _scan_one(
     conn,
     sem: asyncio.Semaphore,
 ) -> bool:
-    """Hash a single file and insert it into the DB. Returns True on success."""
+    """Compute partial hash for a single file and insert into the DB."""
     async with sem:
         try:
             stat = full.stat()
             mtime = datetime.fromtimestamp(stat.st_mtime, timezone.utc).isoformat()
 
             cached = get_cached_file(conn, str(full))
-            if cached and cached[0] == mtime:
-                md5 = cached[1]
+            if cached and cached[0] == mtime and cached[2] is not None:
+                partial = cached[2]
+                full_hash = cached[1]
+            elif cached and cached[0] == mtime:
+                partial = await asyncio.to_thread(md5_partial_file, full, stat.st_size)
+                full_hash = cached[1]
             else:
-                md5 = await asyncio.to_thread(_md5_file, full)
+                partial = await asyncio.to_thread(md5_partial_file, full, stat.st_size)
+                if stat.st_size <= PARTIAL_THRESHOLD:
+                    full_hash = partial
+                else:
+                    full_hash = ""
 
             insert_file(
                 conn,
@@ -60,8 +65,9 @@ async def _scan_one(
                 full_path=str(full),
                 mtime=mtime,
                 size_bytes=stat.st_size,
-                md5_hash=md5,
+                md5_hash=full_hash,
                 scan_date=scan_date,
+                md5_partial=partial,
             )
             return True
         except (OSError, PermissionError) as exc:
@@ -107,7 +113,11 @@ def scan_directory_async(
 ) -> int:
     """
     Scan *directory* recursively and insert every file into the database
-    using async I/O for concurrent hashing.
+    using async I/O for concurrent partial hashing.
+
+    Phase 1: compute partial hashes concurrently.
+    Phase 2: resolve collisions (calls the sync resolver — typically
+    very few files need full hashing).
 
     Returns the number of files scanned.
     """
@@ -115,4 +125,9 @@ def scan_directory_async(
     if not directory.is_dir():
         raise NotADirectoryError(f"Not a directory: {directory}")
 
-    return asyncio.run(_scan_directory_async(directory, conn, concurrency))
+    count = asyncio.run(_scan_directory_async(directory, conn, concurrency))
+
+    # Phase 2: resolve collisions with full hashes
+    resolve_collisions(conn)
+
+    return count

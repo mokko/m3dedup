@@ -2,6 +2,12 @@
 
 Simple file deduplication scanner. Scans a directory recursively and records file metadata (name, path, size, mtime, MD5 hash) into a SQLite database. Duplicate files are identified by matching MD5 hashes.
 
+## Performance optimisations
+
+- **Partial hashing**: large files (>4 KB) are hashed using only the first and last 4 KB. The full hash is computed only when multiple files share the same partial hash, dramatically reducing I/O on directories with mostly unique files.
+- **mtime caching**: on re-scans, files whose mtime hasn't changed are skipped entirely — no file reading or hashing.
+- **Async I/O**: the `scan-async` command hashes files concurrently using a thread pool.
+
 ## Requirements
 
 - Python 3.10 or newer
@@ -55,6 +61,7 @@ Table: `files`
 | `mtime`     | File modification time (UTC ISO format) |
 | `size_bytes`| File size in bytes                       |
 | `md5_hash`  | MD5 hex digest of file contents          |
+| `md5_partial` | Partial MD5 (first+last 4 KB) — NULL for small files where the full hash is used as partial |
 
 ## Notes
 
