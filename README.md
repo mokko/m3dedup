@@ -46,6 +46,12 @@ python -m m3dedup rescan
 python -m m3dedup rescan --async
 ```
 
+List all previously scanned directories:
+
+```bash
+python -m m3dedup dirs
+```
+
 List duplicate file groups (files with identical MD5 hashes):
 
 ```bash

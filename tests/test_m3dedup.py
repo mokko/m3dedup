@@ -591,3 +591,50 @@ class TestRescanCLI:
         out = capsys.readouterr().out
         assert "Aborted" in out
         assert not Path(db).exists()
+
+
+# ── dirs CLI tests ─────────────────────────────────────────────────────
+
+class TestDirsCLI:
+    def test_dirs_no_db(self, tmp_path, capsys):
+        db = tmp_path / "nonexistent.db"
+        rc = cli_main(["dirs", "--db", str(db)])
+        assert rc == 1
+        out = capsys.readouterr().out
+        assert "Database file does not exist" in out
+
+    def test_dirs_empty(self, tmp_path, capsys):
+        db = tmp_path / "empty.db"
+        open_db(db).close()
+        rc = cli_main(["dirs", "--db", str(db)])
+        assert rc == 0
+        out = capsys.readouterr().out
+        assert "No directories" in out
+
+    @patch("builtins.input", side_effect=["y"])
+    def test_dirs_after_scan(self, mock_input, sample_dir, tmp_path, capsys):
+        db = tmp_path / "dirs.db"
+        cli_main(["scan", str(sample_dir), "--db", str(db)])
+        rc = cli_main(["dirs", "--db", str(db)])
+        assert rc == 0
+        out = capsys.readouterr().out
+        assert "1 scanned director" in out
+        assert str(sample_dir) in out
+
+    @patch("builtins.input", side_effect=["y", "y"])
+    def test_dirs_multiple(self, mock_input, tmp_path, capsys):
+        d1 = tmp_path / "dir1"
+        d2 = tmp_path / "dir2"
+        d1.mkdir()
+        d2.mkdir()
+        (d1 / "a.txt").write_bytes(b"aaa")
+        (d2 / "b.txt").write_bytes(b"bbb")
+        db = tmp_path / "multi_dirs.db"
+        cli_main(["scan", str(d1), "--db", str(db)])
+        cli_main(["scan", str(d2), "--db", str(db)])
+        rc = cli_main(["dirs", "--db", str(db)])
+        assert rc == 0
+        out = capsys.readouterr().out
+        assert "2 scanned director" in out
+        assert str(d1) in out
+        assert str(d2) in out
