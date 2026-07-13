@@ -36,3 +36,17 @@ def make_progress() -> Progress:
         TimeRemainingColumn(),
         transient=False,
     )
+
+
+def make_resolve_progress() -> Progress:
+    """Return a configured Rich Progress instance for collision resolution."""
+    return Progress(
+        SpinnerColumn(),
+        TextColumn("[bold yellow]Resolving collisions"),
+        BarColumn(),
+        TaskProgressColumn(),
+        TextColumn("{task.completed}/{task.total} files"),
+        TimeElapsedColumn(),
+        TimeRemainingColumn(),
+        transient=False,
+    )

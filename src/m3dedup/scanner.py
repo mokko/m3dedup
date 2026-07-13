@@ -24,7 +24,7 @@ from .db import (
     insert_file,
     update_full_hash,
 )
-from .progress import count_files, make_progress
+from .progress import count_files, make_progress, make_resolve_progress
 
 log = logging.getLogger(__name__)
 
@@ -182,7 +182,7 @@ def scan_directory(directory: str | Path, conn) -> int:
     return count
 
 
-def resolve_collisions(conn) -> int:
+def resolve_collisions(conn, progress=None, task_id=None) -> int:
     """
     For files sharing the same (size_bytes, md5_partial), compute the
     full MD5 hash to confirm true duplicates. Files that were already
@@ -191,14 +191,20 @@ def resolve_collisions(conn) -> int:
     Returns the number of full hashes computed.
     """
     groups = find_partial_collision_groups(conn)
-    resolved = 0
 
+    # Count files that need full hashing
+    files_to_resolve = []
     for group in groups:
         for f in group:
-            # Skip files that already have a full hash
-            if f["md5_hash"]:
-                continue
+            if not f["md5_hash"]:
+                files_to_resolve.append(f)
 
+    resolved = 0
+
+    with make_resolve_progress() as resolve_progress:
+        task = resolve_progress.add_task("resolve", total=len(files_to_resolve))
+
+        for f in files_to_resolve:
             path = Path(f["full_path"])
             try:
                 full_hash = md5_file(path)
@@ -206,6 +212,8 @@ def resolve_collisions(conn) -> int:
                 resolved += 1
             except (OSError, PermissionError) as exc:
                 log.warning("Skipping %s: %s", path, exc)
+            finally:
+                resolve_progress.advance(task)
 
     conn.commit()
     return resolved
