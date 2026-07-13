@@ -28,7 +28,7 @@ def make_progress() -> Progress:
     """Return a configured Rich Progress instance for scan display."""
     return Progress(
         SpinnerColumn(),
-        TextColumn("[bold blue]Scanning"),
+        TextColumn("[bold blue]Resolving Partial Hashes"),
         BarColumn(),
         TaskProgressColumn(),
         TextColumn("{task.completed}/{task.total} files"),
@@ -42,7 +42,7 @@ def make_resolve_progress() -> Progress:
     """Return a configured Rich Progress instance for collision resolution."""
     return Progress(
         SpinnerColumn(),
-        TextColumn("[bold yellow]Resolving collisions"),
+        TextColumn("[bold yellow]Resolving Full Hashes"),
         BarColumn(),
         TaskProgressColumn(),
         TextColumn("{task.completed}/{task.total} files"),
