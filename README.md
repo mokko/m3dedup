@@ -68,14 +68,6 @@ The `show` command accepts an optional integer argument to select the output for
 | `dedup show 2` | 2 | JSON — machine-readable, suitable for scripts |
 | `dedup show 3` | 3 | Interactive dedup — prompts you to keep one file per group and delete the rest (with confirmation) |
 
-**Format 0 (default):** Colored output with grouped duplicate listings, file sizes, and wasted space totals.
-
-**Format 1 (plain):** Same information as format 0 but without ANSI color codes — useful for piping or logging.
-
-**Format 2 (JSON):** Array of objects, each containing group number, file count, size in bytes, human-readable size, wasted bytes, and file paths. Empty array `[]` when no duplicates found.
-
-**Format 3 (interactive):** Walks through each duplicate group one at a time. Shows numbered file list, asks which file to keep, displays a red warning with the files to be deleted, and requires typing `yes` to confirm. Type `s` to skip a group or `q` to quit.
-
 By default the database is stored at `~/dedup.db`. You can override this with the `--db` option:
 
 ```bash
