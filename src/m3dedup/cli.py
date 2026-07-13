@@ -91,12 +91,26 @@ def cmd_duplicates(args: argparse.Namespace) -> int:
     conn.close()
 
     if not groups:
-        console.print("[green]No duplicates found.[/green]")
+        if args.format == 2:
+            print("[]")
+        else:
+            console.print("[green]No duplicates found.[/green]")
         return 0
 
     # Sort groups by file size descending (biggest first)
     groups.sort(key=lambda g: g[0]["size_bytes"], reverse=True)
 
+    if args.format == 2:
+        _show_json(groups)
+    elif args.format == 1:
+        _show_plain(groups)
+    else:
+        _show_rich(console, groups)
+    return 0
+
+
+def _show_rich(console: Console, groups: list) -> None:
+    """Format 0: rich console output (default)."""
     total_dupes = 0
     total_waste = 0
     for i, group in enumerate(groups, 1):
@@ -117,7 +131,40 @@ def cmd_duplicates(args: argparse.Namespace) -> int:
         f"[bold]{total_dupes}[/bold] file(s) total, "
         f"[bold red]{human_size(total_waste)}[/bold red] wasted."
     )
-    return 0
+
+
+def _show_plain(groups: list) -> None:
+    """Format 1: plain text output."""
+    total_dupes = 0
+    total_waste = 0
+    for i, group in enumerate(groups, 1):
+        size = group[0]["size_bytes"]
+        waste = size * (len(group) - 1)
+        total_waste += waste
+        total_dupes += len(group)
+        print(f"\nGroup {i} — {len(group)} files, {human_size(size)} each, wasted: {human_size(waste)}")
+        for f in group:
+            print(f"  {f['full_path']}")
+
+    print(f"\n{len(groups)} duplicate group(s), {total_dupes} file(s) total, {human_size(total_waste)} wasted.")
+
+
+def _show_json(groups: list) -> None:
+    """Format 2: JSON output."""
+    import json
+    output = []
+    for i, group in enumerate(groups, 1):
+        size = group[0]["size_bytes"]
+        output.append({
+            "group": i,
+            "file_count": len(group),
+            "size_bytes": size,
+            "size_human": human_size(size),
+            "wasted_bytes": size * (len(group) - 1),
+            "wasted_human": human_size(size * (len(group) - 1)),
+            "files": [f["full_path"] for f in group],
+        })
+    print(json.dumps(output, indent=2))
 
 
 def cmd_rescan(args: argparse.Namespace) -> int:
@@ -231,6 +278,13 @@ def main(argv: list[str] | None = None) -> int:
             "file size (largest first). Shows total duplicate count and wasted space."
         ),
         formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
+    p_dupes.add_argument(
+        "format",
+        type=int,
+        nargs="?",
+        default=0,
+        help="Output format: 0 = rich console (default), 1 = plain text, 2 = JSON",
     )
     p_dupes.add_argument("--db", default=DEFAULT_DB, help=f"SQLite database path (default: {DEFAULT_DB})")
     p_dupes.set_defaults(func=cmd_duplicates)
