@@ -381,17 +381,9 @@ class TestCLI:
         assert "6 file(s) recorded" in out
 
     @patch("builtins.input", side_effect=["y"])
-    def test_scan_async_command(self, mock_input, sample_dir, tmp_path, capsys):
-        db = tmp_path / "cli_async.db"
-        rc = cli_main(["scan-async", str(sample_dir), "--db", str(db)])
-        assert rc == 0
-        out = capsys.readouterr().out
-        assert "6 file(s) recorded" in out
-
-    @patch("builtins.input", side_effect=["y"])
     def test_scan_with_async_flag(self, mock_input, sample_dir, tmp_path, capsys):
-        db = tmp_path / "cli_scan_async.db"
-        rc = cli_main(["scan", str(sample_dir), "--async", "--db", str(db)])
+        db = tmp_path / "cli_async.db"
+        rc = cli_main(["scan", "--async", str(sample_dir), "--db", str(db)])
         assert rc == 0
         out = capsys.readouterr().out
         assert "Scanning (async)" in out
@@ -432,7 +424,7 @@ class TestCLI:
     @patch("builtins.input", side_effect=["y"])
     def test_scan_async_concurrency_flag(self, mock_input, sample_dir, tmp_path, capsys):
         db = tmp_path / "cli_conc.db"
-        rc = cli_main(["scan-async", str(sample_dir), "--db", str(db), "--concurrency", "4"])
+        rc = cli_main(["scan", "--async", str(sample_dir), "--db", str(db), "--concurrency", "4"])
         assert rc == 0
         out = capsys.readouterr().out
         assert "Concurrency: 4" in out

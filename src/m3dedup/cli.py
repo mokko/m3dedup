@@ -60,20 +60,6 @@ def cmd_scan(args: argparse.Namespace) -> int:
     return 0
 
 
-def cmd_scan_async(args: argparse.Namespace) -> int:
-    db_path = args.db
-    conn = _open_db_with_prompt(db_path)
-    if conn is None:
-        return 1
-    print(f"Scanning (async): {args.directory}")
-    print(f"Database: {db_path}")
-    print(f"Concurrency: {args.concurrency}")
-    count = scan_directory_async(args.directory, conn, concurrency=args.concurrency)
-    conn.close()
-    print(f"Done. {count} file(s) recorded.")
-    return 0
-
-
 def cmd_duplicates(args: argparse.Namespace) -> int:
     console = Console()
     if not Path(args.db).exists():
@@ -174,34 +160,91 @@ def cmd_dirs(args: argparse.Namespace) -> int:
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
         prog="m3dedup",
-        description="Simple file deduplication scanner with SQLite.",
+        description=(
+            "Simple file deduplication scanner with SQLite.\n\n"
+            "Scans directories recursively, records file metadata (name, path, "
+            "size, mtime, MD5 hash) into a SQLite database, and identifies "
+            "duplicate files by matching hashes.\n\n"
+            "Options per command:\n"
+            "  --db PATH          SQLite database path (all commands, default: ~/dedup.db)\n"
+            "  --async            Use async scanner with concurrent hashing (scan, rescan)\n"
+            "  --concurrency N    Max files to hash in parallel with --async (scan, rescan,\n"
+            "                      default: min(32, CPU×4))"
+        ),
+        formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     sub = parser.add_subparsers(dest="command", required=True)
 
-    p_scan = sub.add_parser("scan", help="Scan a directory recursively")
+    p_scan = sub.add_parser(
+        "scan",
+        help="Scan a directory recursively",
+        description=(
+            "Scan a directory recursively and record file metadata (name, path, "
+            "size, mtime, MD5 hash) into the database. Files larger than 4 KB are "
+            "hashed using partial hashing (first + last 4 KB); full hashes are "
+            "computed only when partial hashes collide.\n\n"
+            "Re-scanning the same directory updates existing entries (upsert)."
+        ),
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
     p_scan.add_argument("directory", help="Directory to scan")
     p_scan.add_argument("--db", default=DEFAULT_DB, help=f"SQLite database path (default: {DEFAULT_DB})")
-    p_scan.add_argument("--async", dest="async_mode", action="store_true", help="Use async scanner for concurrent hashing")
-    p_scan.add_argument("--concurrency", type=int, default=DEFAULT_CONCURRENCY, help=f"Max files to hash in parallel (default: {DEFAULT_CONCURRENCY})")
+    p_scan.add_argument(
+        "--async",
+        dest="async_mode",
+        action="store_true",
+        help="Use async scanner for concurrent file hashing (faster on directories with many files)",
+    )
+    p_scan.add_argument(
+        "--concurrency",
+        type=int,
+        default=DEFAULT_CONCURRENCY,
+        help=f"Max files to hash in parallel when --async is used (default: {DEFAULT_CONCURRENCY})",
+    )
     p_scan.set_defaults(func=cmd_scan)
 
-    p_async = sub.add_parser("scan-async", help="Alias for 'scan --async'")
-    p_async.add_argument("directory", help="Directory to scan")
-    p_async.add_argument("--db", default=DEFAULT_DB, help=f"SQLite database path (default: {DEFAULT_DB})")
-    p_async.add_argument("--concurrency", type=int, default=DEFAULT_CONCURRENCY, help=f"Max files to hash in parallel (default: {DEFAULT_CONCURRENCY})")
-    p_async.set_defaults(func=cmd_scan_async)
-
-    p_dupes = sub.add_parser("duplicates", help="List duplicate file groups")
+    p_dupes = sub.add_parser(
+        "duplicates",
+        help="List duplicate file groups",
+        description=(
+            "List groups of files with identical MD5 hashes. Groups are sorted by "
+            "file size (largest first). Shows total duplicate count and wasted space."
+        ),
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
     p_dupes.add_argument("--db", default=DEFAULT_DB, help=f"SQLite database path (default: {DEFAULT_DB})")
     p_dupes.set_defaults(func=cmd_duplicates)
 
-    p_rescan = sub.add_parser("rescan", help="Re-scan all previously scanned directories")
+    p_rescan = sub.add_parser(
+        "rescan",
+        help="Re-scan all previously scanned directories",
+        description=(
+            "Re-scan all directories previously recorded via 'scan'. Files whose "
+            "mtime hasn't changed are skipped. Updated files are re-hashed."
+        ),
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
     p_rescan.add_argument("--db", default=DEFAULT_DB, help=f"SQLite database path (default: {DEFAULT_DB})")
-    p_rescan.add_argument("--async", dest="async_mode", action="store_true", help="Use async scanner")
-    p_rescan.add_argument("--concurrency", type=int, default=DEFAULT_CONCURRENCY, help=f"Max files to hash in parallel (default: {DEFAULT_CONCURRENCY})")
+    p_rescan.add_argument(
+        "--async",
+        dest="async_mode",
+        action="store_true",
+        help="Use async scanner for concurrent file hashing",
+    )
+    p_rescan.add_argument(
+        "--concurrency",
+        type=int,
+        default=DEFAULT_CONCURRENCY,
+        help=f"Max files to hash in parallel when --async is used (default: {DEFAULT_CONCURRENCY})",
+    )
     p_rescan.set_defaults(func=cmd_rescan)
 
-    p_dirs = sub.add_parser("dirs", help="List all previously scanned directories")
+    p_dirs = sub.add_parser(
+        "dirs",
+        help="List all previously scanned directories",
+        description="List all directories that have been scanned and recorded in the database.",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
     p_dirs.add_argument("--db", default=DEFAULT_DB, help=f"SQLite database path (default: {DEFAULT_DB})")
     p_dirs.set_defaults(func=cmd_dirs)
 

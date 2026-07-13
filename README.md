@@ -6,7 +6,7 @@ Simple file deduplication scanner. Scans a directory recursively and records fil
 
 - **Partial hashing**: large files (>4 KB) are hashed using only the first and last 4 KB. The full hash is computed only when multiple files share the same partial hash, dramatically reducing I/O on directories with mostly unique files.
 - **mtime caching**: on re-scans, files whose mtime hasn't changed are skipped entirely — no file reading or hashing.
-- **Async I/O**: the `scan-async` command hashes files concurrently using a thread pool.
+- **Async I/O**: the `scan --async` command hashes files concurrently using a thread pool.
 
 ## Requirements
 
@@ -36,8 +36,6 @@ python -m m3dedup scan /path/to/directory --async --concurrency 64
 ```
 
 The `--concurrency` flag is optional. If omitted, it defaults to `min(32, CPU_threads × 4)`.
-
-> `scan-async` is kept as a backwards-compatible alias for `scan --async`.
 
 Re-scan all previously scanned directories:
 
