@@ -25,14 +25,14 @@ pip install -e .
 Scan a directory (records file metadata into the database):
 
 ```bash
-python -m m3dedup scan /path/to/directory
+m3dedup scan /path/to/directory
 ```
 
 Scan with async I/O (hashes multiple files concurrently — faster on directories with many files):
 
 ```bash
-python -m m3dedup scan /path/to/directory --async
-python -m m3dedup scan /path/to/directory --async --concurrency 64
+m3dedup scan /path/to/directory --async
+m3dedup scan /path/to/directory --async --concurrency 64
 ```
 
 The `--concurrency` flag is optional. If omitted, it defaults to `min(32, CPU_threads × 4)`.
@@ -40,14 +40,14 @@ The `--concurrency` flag is optional. If omitted, it defaults to `min(32, CPU_th
 Re-scan all previously scanned directories:
 
 ```bash
-python -m m3dedup rescan
-python -m m3dedup rescan --async
+m3dedup rescan
+m3dedup rescan --async
 ```
 
 List all previously scanned directories:
 
 ```bash
-python -m m3dedup dirs
+m3dedup dirs
 ```
 
 List duplicate file groups (files with identical MD5 hashes):
@@ -59,8 +59,8 @@ m3dedup show
 By default the database is stored at `~/dedup.db`. You can override this with the `--db` option:
 
 ```bash
-python -m m3dedup scan /path/to/directory --db /other/path.db
-python -m m3dedup duplicates --db /other/path.db
+m3dedup scan /path/to/directory --db /other/path.db
+m3dedup show --db /other/path.db
 ```
 
 ## Database Schema
