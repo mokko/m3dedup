@@ -6,7 +6,7 @@ Simple file deduplication scanner. Scans a directory recursively and records fil
 
 - **Partial hashing**: large files (>4 KB) are hashed using only the first and last 4 KB. The full hash is computed only when multiple files share the same partial hash, dramatically reducing I/O on directories with mostly unique files.
 - **mtime caching**: on re-scans, files whose mtime hasn't changed are skipped entirely — no file reading or hashing.
-- **Async I/O**: the `scan --async` command hashes files concurrently using a thread pool.
+- **Async I/O**: scanning uses async I/O by default, hashing files concurrently via a thread pool. Use `--sync` for the synchronous scanner.
 
 ## Requirements
 
@@ -22,26 +22,29 @@ pip install -e .
 
 ## Usage
 
-Scan a directory (records file metadata into the database):
+Scan a directory (records file metadata into the database — async by default):
 
 ```bash
 dedup scan /path/to/directory
 ```
 
-Scan with async I/O (hashes multiple files concurrently — faster on directories with many files):
+Force synchronous scanning (no concurrent hashing):
 
 ```bash
-dedup scan /path/to/directory --async
-dedup scan /path/to/directory --async --concurrency 64
+dedup scan /path/to/directory --sync
 ```
 
-The `--concurrency` flag is optional. If omitted, it defaults to `min(32, CPU_threads × 4)`.
+The `--concurrency` flag controls how many files are hashed in parallel. If omitted, it defaults to `min(32, CPU_threads × 4)`.
+
+```bash
+dedup scan /path/to/directory --concurrency 64
+```
 
 Re-scan all previously scanned directories:
 
 ```bash
 dedup rescan
-dedup rescan --async
+dedup rescan --sync
 ```
 
 List all previously scanned directories:

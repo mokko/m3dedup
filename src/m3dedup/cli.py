@@ -47,13 +47,13 @@ def cmd_scan(args: argparse.Namespace) -> int:
     conn = _open_db_with_prompt(db_path)
     if conn is None:
         return 1
-    if args.async_mode:
+    if not args.sync_mode:
         print(f"Scanning (async): {args.directory}")
         print(f"Database: {db_path}")
         print(f"Concurrency: {args.concurrency}")
         count = scan_directory_async(args.directory, conn, concurrency=args.concurrency)
     else:
-        print(f"Scanning: {args.directory}")
+        print(f"Scanning (sync): {args.directory}")
         print(f"Database: {db_path}")
         count = scan_directory(args.directory, conn)
     conn.close()
@@ -259,7 +259,7 @@ def cmd_rescan(args: argparse.Namespace) -> int:
     for d in dirs:
         console.print(f"  [dim]{d['full_path']}[/dim]")
 
-    if args.async_mode:
+    if not args.sync_mode:
         scanner = lambda directory: scan_directory_async(directory, conn, concurrency=args.concurrency)
     else:
         scanner = lambda directory: scan_directory(directory, conn)
@@ -310,8 +310,8 @@ def main(argv: list[str] | None = None) -> int:
             "duplicate files by matching hashes.\n\n"
             "Options per command:\n"
             "  --db PATH          SQLite database path (all commands, default: ~/dedup.db)\n"
-            "  --async            Use async scanner with concurrent hashing (scan, rescan)\n"
-            "  --concurrency N    Max files to hash in parallel with --async (scan, rescan,\n"
+            "  --sync             Use synchronous scanner (no concurrent hashing) (scan, rescan)\n"
+            "  --concurrency N    Max files to hash in parallel (scan, rescan,\n"
             "                      default: min(32, CPU×4))"
         ),
         formatter_class=argparse.RawDescriptionHelpFormatter,
@@ -333,16 +333,16 @@ def main(argv: list[str] | None = None) -> int:
     p_scan.add_argument("directory", help="Directory to scan")
     p_scan.add_argument("--db", default=DEFAULT_DB, help=f"SQLite database path (default: {DEFAULT_DB})")
     p_scan.add_argument(
-        "--async",
-        dest="async_mode",
+        "--sync",
+        dest="sync_mode",
         action="store_true",
-        help="Use async scanner for concurrent file hashing (faster on directories with many files)",
+        help="Use synchronous scanner (no concurrent hashing). Default is async with concurrent hashing.",
     )
     p_scan.add_argument(
         "--concurrency",
         type=int,
         default=DEFAULT_CONCURRENCY,
-        help=f"Max files to hash in parallel when --async is used (default: {DEFAULT_CONCURRENCY})",
+        help=f"Max files to hash in parallel (default: {DEFAULT_CONCURRENCY})",
     )
     p_scan.set_defaults(func=cmd_scan)
 
@@ -376,16 +376,16 @@ def main(argv: list[str] | None = None) -> int:
     )
     p_rescan.add_argument("--db", default=DEFAULT_DB, help=f"SQLite database path (default: {DEFAULT_DB})")
     p_rescan.add_argument(
-        "--async",
-        dest="async_mode",
+        "--sync",
+        dest="sync_mode",
         action="store_true",
-        help="Use async scanner for concurrent file hashing",
+        help="Use synchronous scanner (no concurrent hashing). Default is async with concurrent hashing.",
     )
     p_rescan.add_argument(
         "--concurrency",
         type=int,
         default=DEFAULT_CONCURRENCY,
-        help=f"Max files to hash in parallel when --async is used (default: {DEFAULT_CONCURRENCY})",
+        help=f"Max files to hash in parallel (default: {DEFAULT_CONCURRENCY})",
     )
     p_rescan.set_defaults(func=cmd_rescan)
 
