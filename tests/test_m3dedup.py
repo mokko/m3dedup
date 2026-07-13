@@ -393,7 +393,7 @@ class TestCLI:
     def test_duplicates_command(self, mock_input, sample_dir, tmp_path, capsys):
         db = tmp_path / "cli_dupes.db"
         cli_main(["scan", str(sample_dir), "--db", str(db)])
-        rc = cli_main(["duplicates", "--db", str(db)])
+        rc = cli_main(["show", "--db", str(db)])
         assert rc == 0
         out = capsys.readouterr().out
         assert "1 duplicate group(s)" in out
@@ -402,7 +402,7 @@ class TestCLI:
     def test_duplicates_none(self, tmp_path, capsys):
         db = tmp_path / "cli_empty.db"
         open_db(db).close()
-        rc = cli_main(["duplicates", "--db", str(db)])
+        rc = cli_main(["show", "--db", str(db)])
         assert rc == 0
         out = capsys.readouterr().out
         assert "No duplicates found" in out
@@ -410,7 +410,7 @@ class TestCLI:
     def test_duplicates_no_db(self, tmp_path, capsys):
         """Duplicates command should show a helpful error when DB doesn't exist."""
         db = tmp_path / "nonexistent.db"
-        rc = cli_main(["duplicates", "--db", str(db)])
+        rc = cli_main(["show", "--db", str(db)])
         assert rc == 1
         out = capsys.readouterr().out
         assert "Database file does not exist" in out
@@ -441,7 +441,7 @@ class TestCLI:
 
         db = tmp_path / "sort.db"
         cli_main(["scan", str(d), "--db", str(db)])
-        cli_main(["duplicates", "--db", str(db)])
+        cli_main(["show", "--db", str(db)])
         out = capsys.readouterr().out
 
         group1_pos = out.find("Group 1")
@@ -459,7 +459,7 @@ class TestCLI:
 
         db = tmp_path / "size.db"
         cli_main(["scan", str(d), "--db", str(db)])
-        cli_main(["duplicates", "--db", str(db)])
+        cli_main(["show", "--db", str(db)])
         out = capsys.readouterr().out
         assert "9 bytes" in out
         assert "wasted" in out
@@ -468,7 +468,7 @@ class TestCLI:
     def test_duplicates_shows_wasted_total(self, mock_input, sample_dir, tmp_path, capsys):
         db = tmp_path / "waste.db"
         cli_main(["scan", str(sample_dir), "--db", str(db)])
-        cli_main(["duplicates", "--db", str(db)])
+        cli_main(["show", "--db", str(db)])
         out = capsys.readouterr().out
         assert "wasted" in out
 

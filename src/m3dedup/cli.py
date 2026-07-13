@@ -204,7 +204,7 @@ def main(argv: list[str] | None = None) -> int:
     p_scan.set_defaults(func=cmd_scan)
 
     p_dupes = sub.add_parser(
-        "duplicates",
+        "show",
         help="List duplicate file groups",
         description=(
             "List groups of files with identical MD5 hashes. Groups are sorted by "

@@ -53,7 +53,7 @@ python -m m3dedup dirs
 List duplicate file groups (files with identical MD5 hashes):
 
 ```bash
-python -m m3dedup duplicates
+m3dedup show
 ```
 
 By default the database is stored at `~/dedup.db`. You can override this with the `--db` option:
