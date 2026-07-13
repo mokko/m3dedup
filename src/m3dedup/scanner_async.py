@@ -20,7 +20,7 @@ from pathlib import Path
 
 from .db import add_scanned_dir, insert_file
 from .progress import count_files, make_progress
-from .scanner import resolve_collisions, resolve_hashes_async
+from .scanner import resolve_collisions, resolve_collisions_async, resolve_hashes_async
 
 log = logging.getLogger(__name__)
 
@@ -109,8 +109,8 @@ def scan_directory_async(
 
     count, scan_date = asyncio.run(_scan_directory_async(directory, conn, concurrency))
 
-    # Phase 2: resolve collisions with full hashes
-    resolve_collisions(conn)
+    # Phase 2: resolve collisions with full hashes (async)
+    asyncio.run(resolve_collisions_async(conn, concurrency=concurrency))
 
     # Record this directory as scanned
     add_scanned_dir(conn, str(directory), scan_date)

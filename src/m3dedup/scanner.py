@@ -218,3 +218,51 @@ def resolve_collisions(conn, progress=None, task_id=None) -> int:
 
     conn.commit()
     return resolved
+
+
+async def resolve_collisions_async(conn, concurrency: int = 32) -> int:
+    """
+    Async version of resolve_collisions — hashes multiple files concurrently.
+
+    Returns the number of full hashes computed.
+    """
+    from .db import find_partial_collision_groups, update_full_hash
+
+    groups = find_partial_collision_groups(conn)
+
+    files_to_resolve = []
+    for group in groups:
+        for f in group:
+            if not f["md5_hash"]:
+                files_to_resolve.append(f)
+
+    if not files_to_resolve:
+        return 0
+
+    sem = asyncio.Semaphore(concurrency)
+    resolved = 0
+
+    async def _resolve_one(f: dict) -> bool:
+        nonlocal resolved
+        async with sem:
+            path = Path(f["full_path"])
+            try:
+                full_hash = await asyncio.to_thread(md5_file, path)
+                update_full_hash(conn, f["full_path"], full_hash)
+                return True
+            except (OSError, PermissionError) as exc:
+                log.warning("Skipping %s: %s", path, exc)
+                return False
+
+    with make_resolve_progress() as resolve_progress:
+        task = resolve_progress.add_task("resolve", total=len(files_to_resolve))
+
+        tasks = [asyncio.create_task(_resolve_one(f)) for f in files_to_resolve]
+        for coro in asyncio.as_completed(tasks):
+            ok = await coro
+            if ok:
+                resolved += 1
+            resolve_progress.advance(task)
+
+    conn.commit()
+    return resolved
