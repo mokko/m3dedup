@@ -73,7 +73,7 @@ async def _scan_directory_async(
         tasks: list[asyncio.Task] = []
         for root, _dirs, files in os.walk(directory):
             for name in files:
-                full = Path(root) / name
+                full = (Path(root) / name).resolve()
                 tasks.append(asyncio.create_task(_scan_one(full, scan_date, conn, sem)))
 
         # Process results as they complete for progress feedback

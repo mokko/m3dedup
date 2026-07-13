@@ -150,7 +150,7 @@ def scan_directory(directory: str | Path, conn) -> int:
 
         for root, _dirs, files in os.walk(directory):
             for name in files:
-                full = Path(root) / name
+                full = (Path(root) / name).resolve()
                 try:
                     stat = full.stat()
                     mtime = datetime.fromtimestamp(stat.st_mtime, timezone.utc).isoformat()
