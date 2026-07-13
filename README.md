@@ -78,6 +78,14 @@ Table: `files`
 | `md5_hash`  | MD5 hex digest of file contents          |
 | `md5_partial` | Partial MD5 (first+last 4 KB) — NULL for small files where the full hash is used as partial |
 
+Table: `scanned_dirs`
+
+| Column      | Description                              |
+|-------------|------------------------------------------|
+| `id`        | Auto-increment primary key               |
+| `full_path` | Absolute path to the scanned directory (unique) |
+| `scan_date` | UTC timestamp of the scan               |
+
 ## Notes
 
 - Files are hashed in 64 KB chunks, so memory usage stays flat regardless of file size.
