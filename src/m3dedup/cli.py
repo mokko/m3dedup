@@ -104,6 +104,8 @@ def cmd_duplicates(args: argparse.Namespace) -> int:
         _show_json(groups)
     elif args.format == 1:
         _show_plain(groups)
+    elif args.format == 3:
+        _show_interactive(console, groups)
     else:
         _show_rich(console, groups)
     return 0
@@ -165,6 +167,80 @@ def _show_json(groups: list) -> None:
             "files": [f["full_path"] for f in group],
         })
     print(json.dumps(output, indent=2))
+
+
+def _show_interactive(console: Console, groups: list) -> None:
+    """Format 3: interactive dedup — ask which file to keep, delete the rest."""
+    import os
+
+    if not groups:
+        console.print("[green]No duplicates found.[/green]")
+        return
+
+    total_deleted = 0
+    total_freed = 0
+
+    for i, group in enumerate(groups, 1):
+        size = group[0]["size_bytes"]
+        console.print(
+            f"\n[bold cyan]Group {i}[/bold cyan] — "
+            f"{len(group)} files, [bold]{human_size(size)}[/bold] each, "
+            f"[dim]wasted: {human_size(size * (len(group) - 1))}[/dim]"
+        )
+        for j, f in enumerate(group):
+            console.print(f"  [bold]{j + 1}[/bold]. {f['full_path']}")
+
+        console.print("\n[bold yellow]Enter the number of the file to KEEP (all others will be deleted).[/bold yellow]")
+        console.print("[bold yellow]Enter 's' to skip this group, or 'q' to quit.[/bold yellow]")
+
+        choice = input("Keep which file? ").strip().lower()
+
+        if choice == "q":
+            console.print("[dim]Quitting.[/dim]")
+            break
+        if choice == "s":
+            console.print("[dim]Skipping group.[/dim]")
+            continue
+
+        try:
+            keep_idx = int(choice) - 1
+            if keep_idx < 0 or keep_idx >= len(group):
+                console.print("[red]Invalid number. Skipping group.[/red]")
+                continue
+        except ValueError:
+            console.print("[red]Invalid input. Skipping group.[/red]")
+            continue
+
+        console.print(
+            f"\n[bold red]⚠ WARNING: You are about to delete {len(group) - 1} file(s).[/bold red]"
+        )
+        console.print(f"[bold red]Keeping:[/bold red] {group[keep_idx]['full_path']}")
+        for j, f in enumerate(group):
+            if j != keep_idx:
+                console.print(f"[red]  DELETE: {f['full_path']}[/red]")
+
+        confirm = input("\nType 'yes' to confirm deletion: ").strip().lower()
+        if confirm != "yes":
+            console.print("[dim]Cancelled. Skipping group.[/dim]")
+            continue
+
+        for j, f in enumerate(group):
+            if j == keep_idx:
+                continue
+            try:
+                os.remove(f["full_path"])
+                total_deleted += 1
+                total_freed += size
+                console.print(f"[green]  Deleted: {f['full_path']}[/green]")
+            except OSError as exc:
+                console.print(f"[red]  Error deleting {f['full_path']}: {exc}[/red]")
+
+    if total_deleted:
+        console.print(
+            f"\n[bold green]Done. Deleted {total_deleted} file(s), freed {human_size(total_freed)}.[/bold green]"
+        )
+    else:
+        console.print("\n[dim]No files deleted.[/dim]")
 
 
 def cmd_rescan(args: argparse.Namespace) -> int:
@@ -284,7 +360,7 @@ def main(argv: list[str] | None = None) -> int:
         type=int,
         nargs="?",
         default=0,
-        help="Output format: 0 = rich console (default), 1 = plain text, 2 = JSON",
+        help="Output format: 0 = rich console (default), 1 = plain text, 2 = JSON, 3 = interactive dedup (delete files)",
     )
     p_dupes.add_argument("--db", default=DEFAULT_DB, help=f"SQLite database path (default: {DEFAULT_DB})")
     p_dupes.set_defaults(func=cmd_duplicates)
