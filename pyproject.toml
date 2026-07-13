@@ -13,4 +13,4 @@ dependencies = ["rich"]
 dev = ["pytest"]
 
 [project.scripts]
-m3dedup = "m3dedup.cli:main"
+dedup = "m3dedup.cli:main"

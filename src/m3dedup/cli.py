@@ -1,4 +1,4 @@
-"""Command-line interface for m3dedup."""
+"""Command-line interface for dedup."""
 
 from __future__ import annotations
 
@@ -65,7 +65,7 @@ def cmd_duplicates(args: argparse.Namespace) -> int:
     console = Console()
     if not Path(args.db).exists():
         console.print(f"[red]Error:[/red] Database file does not exist: {args.db}")
-        console.print("[dim]Run 'm3dedup scan <directory>' first to create a database.[/dim]")
+        console.print("[dim]Run 'dedup scan <directory>' first to create a database.[/dim]")
         return 1
     conn = open_db(args.db)
 
@@ -82,7 +82,7 @@ def cmd_duplicates(args: argparse.Namespace) -> int:
             pass
     if stale_dirs:
         console.print("[bold red]⚠ WARNING: The following directories were scanned more than 24 hours ago.[/bold red]")
-        console.print("[bold red]Results may be outdated. Run 'm3dedup rescan' to update.[/bold red]")
+        console.print("[bold red]Results may be outdated. Run 'dedup rescan' to update.[/bold red]")
         for d in stale_dirs:
             console.print(f"[red]  {d['full_path']} (last scan: {d['scan_date']})[/red]")
         console.print()
@@ -284,7 +284,7 @@ def cmd_dirs(args: argparse.Namespace) -> int:
     console = Console()
     if not Path(args.db).exists():
         console.print(f"[red]Error:[/red] Database file does not exist: {args.db}")
-        console.print("[dim]Run 'm3dedup scan <directory>' first to create a database.[/dim]")
+        console.print("[dim]Run 'dedup scan <directory>' first to create a database.[/dim]")
         return 1
     conn = open_db(args.db)
     dirs = get_scanned_dirs(conn)
@@ -302,7 +302,7 @@ def cmd_dirs(args: argparse.Namespace) -> int:
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
-        prog="m3dedup",
+        prog="dedup",
         description=(
             "Simple file deduplication scanner with SQLite.\n\n"
             "Scans directories recursively, records file metadata (name, path, "

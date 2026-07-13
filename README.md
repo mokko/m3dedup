@@ -1,4 +1,4 @@
-# m3dedup
+# dedup
 
 Simple file deduplication scanner. Scans a directory recursively and records file metadata (name, path, size, mtime, MD5 hash) into a SQLite database. Duplicate files are identified by matching MD5 hashes.
 
@@ -25,14 +25,14 @@ pip install -e .
 Scan a directory (records file metadata into the database):
 
 ```bash
-m3dedup scan /path/to/directory
+dedup scan /path/to/directory
 ```
 
 Scan with async I/O (hashes multiple files concurrently — faster on directories with many files):
 
 ```bash
-m3dedup scan /path/to/directory --async
-m3dedup scan /path/to/directory --async --concurrency 64
+dedup scan /path/to/directory --async
+dedup scan /path/to/directory --async --concurrency 64
 ```
 
 The `--concurrency` flag is optional. If omitted, it defaults to `min(32, CPU_threads × 4)`.
@@ -40,27 +40,27 @@ The `--concurrency` flag is optional. If omitted, it defaults to `min(32, CPU_th
 Re-scan all previously scanned directories:
 
 ```bash
-m3dedup rescan
-m3dedup rescan --async
+dedup rescan
+dedup rescan --async
 ```
 
 List all previously scanned directories:
 
 ```bash
-m3dedup dirs
+dedup dirs
 ```
 
 List duplicate file groups (files with identical MD5 hashes):
 
 ```bash
-m3dedup show
+dedup show
 ```
 
 By default the database is stored at `~/dedup.db`. You can override this with the `--db` option:
 
 ```bash
-m3dedup scan /path/to/directory --db /other/path.db
-m3dedup show --db /other/path.db
+dedup scan /path/to/directory --db /other/path.db
+dedup show --db /other/path.db
 ```
 
 ## Database Schema
