@@ -32,13 +32,14 @@ async def _scan_one(
     scan_date: str,
     conn,
     sem: asyncio.Semaphore,
-) -> bool:
-    """Compute partial hash for a single file and insert into the DB."""
+) -> tuple[bool, str | None]:
+    """Compute partial hash for a single file and insert into the DB.
+    Returns (success, full_path_if_needs_resolve)."""
     async with sem:
         try:
             stat = full.stat()
             mtime = datetime.fromtimestamp(stat.st_mtime, timezone.utc).isoformat()
-            partial, full_hash = await resolve_hashes_async(full, stat, conn)
+            partial, full_hash, needs_resolve = await resolve_hashes_async(full, stat, conn)
 
             insert_file(
                 conn,
@@ -50,21 +51,24 @@ async def _scan_one(
                 scan_date=scan_date,
                 md5_partial=partial,
             )
-            return True
+            if needs_resolve and not full_hash:
+                return True, str(full)
+            return True, None
         except (OSError, PermissionError) as exc:
             log.warning("Skipping %s: %s", full, exc)
-            return False
+            return False, None
 
 
 async def _scan_directory_async(
     directory: Path,
     conn,
     concurrency: int,
-) -> tuple[int, str]:
+) -> tuple[int, str, list[str]]:
     scan_date = datetime.now(timezone.utc).isoformat()
     sem = asyncio.Semaphore(concurrency)
     total = count_files(directory)
     count = 0
+    needs_full_resolve: list[str] = []
 
     with make_progress() as progress:
         task = progress.add_task("scan", total=total)
@@ -78,13 +82,15 @@ async def _scan_directory_async(
 
         # Process results as they complete for progress feedback
         for coro in asyncio.as_completed(tasks):
-            ok = await coro
+            ok, needs_resolve_path = await coro
             if ok:
                 count += 1
+                if needs_resolve_path:
+                    needs_full_resolve.append(needs_resolve_path)
             progress.advance(task)
 
     conn.commit()
-    return count, scan_date
+    return count, scan_date, needs_full_resolve
 
 
 def scan_directory_async(
@@ -107,10 +113,10 @@ def scan_directory_async(
         raise NotADirectoryError(f"Not a directory: {directory}")
     directory = directory.resolve()
 
-    count, scan_date = asyncio.run(_scan_directory_async(directory, conn, concurrency))
+    count, scan_date, needs_full_resolve = asyncio.run(_scan_directory_async(directory, conn, concurrency))
 
     # Phase 2: resolve collisions with full hashes (async)
-    asyncio.run(resolve_collisions_async(conn, concurrency=concurrency))
+    asyncio.run(resolve_collisions_async(conn, concurrency=concurrency, needs_full_resolve=needs_full_resolve))
 
     # Record this directory as scanned
     add_scanned_dir(conn, str(directory), scan_date)
