@@ -138,6 +138,7 @@ def scan_directory(directory: str | Path, conn) -> int:
     directory = Path(directory)
     if not directory.is_dir():
         raise NotADirectoryError(f"Not a directory: {directory}")
+    directory = directory.resolve()
 
     scan_date = datetime.now(timezone.utc).isoformat()
     total = count_files(directory)

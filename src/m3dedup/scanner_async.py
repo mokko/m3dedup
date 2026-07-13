@@ -105,6 +105,7 @@ def scan_directory_async(
     directory = Path(directory)
     if not directory.is_dir():
         raise NotADirectoryError(f"Not a directory: {directory}")
+    directory = directory.resolve()
 
     count, scan_date = asyncio.run(_scan_directory_async(directory, conn, concurrency))
 

@@ -516,6 +516,28 @@ class TestScannedDirs:
         dirs = get_scanned_dirs(conn)
         assert len(dirs) == 2
 
+    def test_scan_resolves_relative_path(self, tmp_path, conn, monkeypatch):
+        d = tmp_path / "subdir"
+        d.mkdir()
+        (d / "a.txt").write_bytes(b"hello")
+        monkeypatch.chdir(tmp_path)
+        scan_directory(".", conn)
+        dirs = get_scanned_dirs(conn)
+        assert len(dirs) == 1
+        assert dirs[0]["full_path"] == str(d.parent.resolve())
+        assert dirs[0]["full_path"] != "."
+
+    def test_scan_async_resolves_relative_path(self, tmp_path, conn, monkeypatch):
+        d = tmp_path / "subdir"
+        d.mkdir()
+        (d / "a.txt").write_bytes(b"hello")
+        monkeypatch.chdir(tmp_path)
+        scan_directory_async(".", conn)
+        dirs = get_scanned_dirs(conn)
+        assert len(dirs) == 1
+        assert dirs[0]["full_path"] == str(d.parent.resolve())
+        assert dirs[0]["full_path"] != "."
+
 
 # ── rescan CLI tests ──────────────────────────────────────────────────
 
