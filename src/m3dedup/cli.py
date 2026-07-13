@@ -11,6 +11,7 @@ from rich.console import Console
 from .db import find_duplicates, get_scanned_dirs, open_db
 from .scanner import scan_directory
 from .scanner_async import DEFAULT_CONCURRENCY, scan_directory_async
+from datetime import datetime, timezone
 
 DEFAULT_DB = str(Path.home() / "dedup.db")
 
@@ -67,6 +68,25 @@ def cmd_duplicates(args: argparse.Namespace) -> int:
         console.print("[dim]Run 'm3dedup scan <directory>' first to create a database.[/dim]")
         return 1
     conn = open_db(args.db)
+
+    # Check if any scanned directory is older than 24 hours
+    dirs = get_scanned_dirs(conn)
+    now = datetime.now(timezone.utc)
+    stale_dirs = []
+    for d in dirs:
+        try:
+            scan_time = datetime.fromisoformat(d["scan_date"])
+            if (now - scan_time).total_seconds() > 86400:
+                stale_dirs.append(d)
+        except (ValueError, TypeError):
+            pass
+    if stale_dirs:
+        console.print("[bold red]⚠ WARNING: The following directories were scanned more than 24 hours ago.[/bold red]")
+        console.print("[bold red]Results may be outdated. Run 'm3dedup rescan' to update.[/bold red]")
+        for d in stale_dirs:
+            console.print(f"[red]  {d['full_path']} (last scan: {d['scan_date']})[/red]")
+        console.print()
+
     groups = find_duplicates(conn)
     conn.close()
 
