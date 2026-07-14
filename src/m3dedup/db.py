@@ -149,8 +149,9 @@ def find_duplicates(conn: sqlite3.Connection) -> list[list[dict]]:
         """
         SELECT filename, full_path, scan_date, mtime, size_bytes, md5_hash
         FROM files
-        WHERE md5_hash IN (
-            SELECT md5_hash FROM files GROUP BY md5_hash HAVING COUNT(*) > 1
+        WHERE md5_hash != ''
+          AND md5_hash IN (
+            SELECT md5_hash FROM files WHERE md5_hash != '' GROUP BY md5_hash HAVING COUNT(*) > 1
         )
         ORDER BY md5_hash, full_path
         """
