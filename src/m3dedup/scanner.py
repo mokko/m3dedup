@@ -24,7 +24,7 @@ from .db import (
     insert_file,
     update_full_hash,
 )
-from .progress import count_files, make_progress, make_resolve_progress
+from .progress import make_progress, make_resolve_progress
 
 log = logging.getLogger(__name__)
 
@@ -143,13 +143,12 @@ def scan_directory(directory: str | Path, conn) -> int:
     directory = directory.resolve()
 
     scan_date = datetime.now(timezone.utc).isoformat()
-    total = count_files(directory)
     count = 0
     needs_full_resolve: list[str] = []
 
     # ── Phase 1: partial hashing ─────────────────────────────────────
     with make_progress() as progress:
-        task = progress.add_task("scan", total=total)
+        task = progress.add_task("scan", total=None)
 
         for root, _dirs, files in os.walk(directory):
             for name in files:
@@ -176,6 +175,8 @@ def scan_directory(directory: str | Path, conn) -> int:
                     log.warning("Skipping %s: %s", full, exc)
                 finally:
                     progress.advance(task)
+
+        progress.update(task, total=count)
 
     conn.commit()
 

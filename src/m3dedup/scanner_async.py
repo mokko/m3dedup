@@ -19,7 +19,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from .db import add_scanned_dir, insert_file
-from .progress import count_files, make_progress
+from .progress import make_progress
 from .scanner import resolve_collisions, resolve_collisions_async, resolve_hashes_async
 
 log = logging.getLogger(__name__)
@@ -66,19 +66,23 @@ async def _scan_directory_async(
 ) -> tuple[int, str, list[str]]:
     scan_date = datetime.now(timezone.utc).isoformat()
     sem = asyncio.Semaphore(concurrency)
-    total = count_files(directory)
     count = 0
     needs_full_resolve: list[str] = []
 
     with make_progress() as progress:
-        task = progress.add_task("scan", total=total)
+        task = progress.add_task("scan", total=None)
 
         # Collect all file paths first (os.walk is synchronous but fast)
-        tasks: list[asyncio.Task] = []
+        file_paths: list[Path] = []
         for root, _dirs, files in os.walk(directory):
             for name in files:
-                full = (Path(root) / name).resolve()
-                tasks.append(asyncio.create_task(_scan_one(full, scan_date, conn, sem)))
+                file_paths.append((Path(root) / name).resolve())
+
+        progress.update(task, total=len(file_paths))
+
+        tasks: list[asyncio.Task] = []
+        for full in file_paths:
+            tasks.append(asyncio.create_task(_scan_one(full, scan_date, conn, sem)))
 
         # Process results as they complete for progress feedback
         for coro in asyncio.as_completed(tasks):
