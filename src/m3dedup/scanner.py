@@ -264,7 +264,6 @@ async def resolve_collisions_async(conn, concurrency: int = 32, needs_full_resol
     resolved = 0
 
     async def _resolve_one(f: dict) -> bool:
-        nonlocal resolved
         async with sem:
             path = Path(f["full_path"])
             try:
