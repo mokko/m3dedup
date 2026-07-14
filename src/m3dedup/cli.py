@@ -296,7 +296,7 @@ def cmd_dirs(args: argparse.Namespace) -> int:
 
     console.print(f"[bold]{len(dirs)} scanned director(y/ies):[/bold]\n")
     for d in dirs:
-        console.print(f"  [dim]{d['scan_date']}[/dim]  {d['full_path']}")
+        console.print(f"  [dim]{d['scan_date']}[/dim]  [bold]{d['full_path']}[/bold]")
     return 0
 
 
