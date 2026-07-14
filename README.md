@@ -51,7 +51,7 @@ dedup rescan --sync
 
 List all previously scanned directories:
 
-```bash
+```
 dedup dirs
 ```
 
