@@ -243,8 +243,6 @@ async def resolve_collisions_async(conn, concurrency: int = 32, needs_full_resol
 
     Returns the number of full hashes computed.
     """
-    from .db import find_partial_collision_groups, update_full_hash
-
     groups = find_partial_collision_groups(conn)
 
     resolve_set = set(needs_full_resolve) if needs_full_resolve is not None else None
