@@ -172,6 +172,11 @@ def find_duplicates(conn: sqlite3.Connection) -> list[list[dict]]:
     return list(groups.values())
 
 
+def delete_file(conn: sqlite3.Connection, full_path: str) -> None:
+    """Delete a file entry from the database by full_path."""
+    conn.execute("DELETE FROM files WHERE full_path = ?", (full_path,))
+
+
 def add_scanned_dir(
     conn: sqlite3.Connection, full_path: str, scan_date: str | None = None
 ) -> None:

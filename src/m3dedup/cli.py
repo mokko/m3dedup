@@ -8,7 +8,7 @@ from pathlib import Path
 
 from rich.console import Console
 
-from .db import find_duplicates, get_scanned_dirs, open_db
+from .db import delete_file, find_duplicates, get_scanned_dirs, open_db
 from .scanner import scan_directory
 from .scanner_async import DEFAULT_CONCURRENCY, scan_directory_async
 from datetime import datetime, timezone
@@ -105,9 +105,10 @@ def cmd_duplicates(args: argparse.Namespace) -> int:
     elif args.format == 1:
         _show_plain(groups)
     elif args.format == 3:
-        _show_interactive(console, groups)
+        _show_interactive(console, groups, conn)
     else:
         _show_rich(console, groups)
+    conn.close()
     return 0
 
 
@@ -169,7 +170,7 @@ def _show_json(groups: list) -> None:
     print(json.dumps(output, indent=2))
 
 
-def _show_interactive(console: Console, groups: list) -> None:
+def _show_interactive(console: Console, groups: list, conn) -> None:
     """Format 3: interactive dedup — ask which file to keep, delete the rest."""
     import os
 
@@ -179,6 +180,11 @@ def _show_interactive(console: Console, groups: list) -> None:
 
     total_deleted = 0
     total_freed = 0
+
+    console.print(
+        "\n[bold red]⚠ WARNING: Files will be deleted immediately when you choose which to keep. "
+        "This cannot be undone.[/bold red]\n"
+    )
 
     for i, group in enumerate(groups, 1):
         size = group[0]["size_bytes"]
@@ -211,24 +217,13 @@ def _show_interactive(console: Console, groups: list) -> None:
             console.print("[red]Invalid input. Skipping group.[/red]")
             continue
 
-        console.print(
-            f"\n[bold red]⚠ WARNING: You are about to delete {len(group) - 1} file(s).[/bold red]"
-        )
-        console.print(f"[bold red]Keeping:[/bold red] {group[keep_idx]['full_path']}")
-        for j, f in enumerate(group):
-            if j != keep_idx:
-                console.print(f"[red]  DELETE: {f['full_path']}[/red]")
-
-        confirm = input("\nType 'yes' to confirm deletion: ").strip().lower()
-        if confirm != "yes":
-            console.print("[dim]Cancelled. Skipping group.[/dim]")
-            continue
-
         for j, f in enumerate(group):
             if j == keep_idx:
                 continue
             try:
                 os.remove(f["full_path"])
+                delete_file(conn, f["full_path"])
+                conn.commit()
                 total_deleted += 1
                 total_freed += size
                 console.print(f"[green]  Deleted: {f['full_path']}[/green]")
