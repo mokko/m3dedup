@@ -188,7 +188,7 @@ def scan_directory(directory: str | Path, conn) -> int:
     return count
 
 
-def resolve_collisions(conn, progress=None, task_id=None, needs_full_resolve=None) -> int:
+def resolve_collisions(conn, needs_full_resolve=None) -> int:
     """
     For files sharing the same (size_bytes, md5_partial), compute the
     full MD5 hash to confirm true duplicates. Files that were already
