@@ -1,6 +1,6 @@
 # dedup
 
-Simple file deduplication scanner. Scans a directory recursively and records file metadata (name, path, size, mtime, MD5 hash) into a SQLite database. Duplicate files are identified by matching MD5 hashes.
+Simple file deduplication scanner. Scans a directory recursively and records file metadata (name, path, size, mtime, MD5 hash) into a SQLite database. Duplicate files are identified by matching MD5 hashes and shown in various reports. Some reports allow user to interactively delete duplicates.
 
 ## Performance optimisations
 
