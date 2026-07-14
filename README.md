@@ -51,9 +51,7 @@ dedup rescan --sync
 
 List all previously scanned directories:
 
-```bash
 dedup dirs
-```
 
 List duplicate file groups (files with identical MD5 hashes):
 
