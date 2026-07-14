@@ -63,13 +63,13 @@ dedup show
 
 The `show` command accepts an optional integer argument to select the output format:
 
-| Command | Format | Description |
-|---------|--------|-------------|
-| `dedup show` | 0 | Rich console output (default) — colored, with human-readable sizes |
-| `dedup show 0` | 0 | Same as above |
-| `dedup show 1` | 1 | Plain text — no colors, pipeable to other tools |
-| `dedup show 2` | 2 | JSON — machine-readable, suitable for scripts |
-| `dedup show 3` | 3 | Interactive dedup — prompts you to keep one file per group and delete the rest (with confirmation) |
+| Command | Description |
+|---------|-------------|
+| `dedup show` | Rich console output (default) — colored, with human-readable sizes |
+| `dedup show 0` | Same as above |
+| `dedup show 1` | Plain text — no colors, pipeable to other tools |
+| `dedup show 2` | JSON — machine-readable, suitable for scripts |
+| `dedup show 3` | Interactive dedup — prompts you to keep one file per group and delete the rest (with confirmation) |
 
 By default the database is stored at `~/dedup.db`. You can override this with the `--db` option:
 
