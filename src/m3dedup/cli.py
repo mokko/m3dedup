@@ -61,7 +61,7 @@ def cmd_scan(args: argparse.Namespace) -> int:
     return 0
 
 
-def cmd_duplicates(args: argparse.Namespace) -> int:
+def cmd_show(args: argparse.Namespace) -> int:
     console = Console()
     if not Path(args.db).exists():
         console.print(f"[red]Error:[/red] Database file does not exist: {args.db}")
@@ -358,7 +358,7 @@ def main(argv: list[str] | None = None) -> int:
         help="Output format: 0 = rich console (default), 1 = plain text, 2 = JSON, 3 = interactive dedup (delete files)",
     )
     p_dupes.add_argument("--db", default=DEFAULT_DB, help=f"SQLite database path (default: {DEFAULT_DB})")
-    p_dupes.set_defaults(func=cmd_duplicates)
+    p_dupes.set_defaults(func=cmd_show)
 
     p_rescan = sub.add_parser(
         "rescan",
