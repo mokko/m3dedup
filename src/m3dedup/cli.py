@@ -88,13 +88,13 @@ def cmd_show(args: argparse.Namespace) -> int:
         console.print()
 
     groups = find_duplicates(conn)
-    conn.close()
 
     if not groups:
         if args.format == 2:
             print("[]")
         else:
             console.print("[green]No duplicates found.[/green]")
+        conn.close()
         return 0
 
     # Sort groups by file size descending (biggest first)
