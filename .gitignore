@@ -8,3 +8,4 @@ dist/
 venv/
 *.db
 .pytest_cache/
+.venv310/
