@@ -13,7 +13,7 @@ Simple file deduplication scanner. Scans a directory recursively and records fil
 ## Requirements
 
 - Python 3.10 or newer
-- No external dependencies (stdlib only)
+- [rich](https://github.com/Textualize/rich) — for coloured console output and progress bars
 
 ## Installation
 
