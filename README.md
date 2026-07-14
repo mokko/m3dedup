@@ -2,11 +2,14 @@
 
 Simple file deduplication scanner. Scans a directory recursively and records file metadata (name, path, size, mtime, MD5 hash) into a SQLite database. Duplicate files are identified by matching MD5 hashes and shown in various reports. Some reports allow user to interactively delete duplicates.
 
-## Performance optimisations
+## Performance Optimisations
 
 - **Partial hashing**: large files (>4 KB) are hashed using only the first and last 4 KB. The full hash is computed only when multiple files share the same partial hash, dramatically reducing I/O on directories with mostly unique files.
 - **mtime caching**: on re-scans, files whose mtime hasn't changed are skipped entirely — no file reading or hashing.
 - **Async I/O**: scanning uses async I/O by default, hashing files concurrently via a thread pool. Use `--sync` for the synchronous scanner.
+- **Constant memory**: files are hashed in 64 KB chunks, so memory usage stays flat regardless of file size.
+- **Upsert on rescan**: re-scanning the same directory updates existing entries rather than creating duplicates.
+- **MD5 for speed**: MD5 is sufficient for deduplication but should not be relied on for security purposes.
 
 ## Requirements
 
@@ -100,9 +103,3 @@ Table: `scanned_dirs`
 | `id`        | Auto-increment primary key               |
 | `full_path` | Absolute path to the scanned directory (unique) |
 | `scan_date` | UTC timestamp of the scan               |
-
-## Notes
-
-- Files are hashed in 64 KB chunks, so memory usage stays flat regardless of file size.
-- Re-scanning the same directory updates existing entries (upsert) rather than creating duplicates.
-- MD5 is used for speed. It is sufficient for deduplication but should not be relied on for security purposes.
