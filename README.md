@@ -8,7 +8,6 @@ Simple file deduplication scanner. Scans a directory recursively and records fil
 - **mtime caching**: on re-scans, files whose mtime hasn't changed are skipped entirely — no file reading or hashing.
 - **Async I/O**: scanning uses async I/O by default, hashing files concurrently via a thread pool. Use `--sync` for the synchronous scanner.
 - **Constant memory**: files are hashed in 64 KB chunks, so memory usage stays flat regardless of file size.
-- **Upsert on rescan**: re-scanning the same directory updates existing entries rather than creating duplicates.
 - **MD5 for speed**: MD5 is sufficient for deduplication but should not be relied on for security purposes.
 
 ## Requirements
