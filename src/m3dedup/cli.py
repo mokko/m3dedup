@@ -47,15 +47,23 @@ def cmd_scan(args: argparse.Namespace) -> int:
     conn = _open_db_with_prompt(db_path)
     if conn is None:
         return 1
-    if not args.sync_mode:
-        print(f"Scanning (async): {args.directory}")
-        print(f"Database: {db_path}")
-        print(f"Concurrency: {args.concurrency}")
-        count = scan_directory_async(args.directory, conn, concurrency=args.concurrency)
-    else:
-        print(f"Scanning (sync): {args.directory}")
-        print(f"Database: {db_path}")
-        count = scan_directory(args.directory, conn)
+    try:
+        if not args.sync_mode:
+            print(f"Scanning (async): {args.directory}")
+            print(f"Database: {db_path}")
+            print(f"Concurrency: {args.concurrency}")
+            count = scan_directory_async(args.directory, conn, concurrency=args.concurrency)
+        else:
+            print(f"Scanning (sync): {args.directory}")
+            print(f"Database: {db_path}")
+            count = scan_directory(args.directory, conn)
+    except KeyboardInterrupt:
+        console = Console()
+        console.print("\n[bold red]⚠ Interrupted by user (Ctrl+C). Saving database...[/bold red]")
+        conn.commit()
+        conn.close()
+        console.print("[yellow]Database saved. Partial results may be incomplete.[/yellow]")
+        return 130
     conn.close()
     print(f"Done. {count} file(s) recorded.")
     return 0
@@ -260,15 +268,22 @@ def cmd_rescan(args: argparse.Namespace) -> int:
         scanner = lambda directory: scan_directory(directory, conn)
 
     total_count = 0
-    for d in dirs:
-        path = d["full_path"]
-        console.print(f"\nScanning: {path}")
-        try:
-            count = scanner(path)
-            total_count += count
-            console.print(f"  {count} file(s) recorded.")
-        except NotADirectoryError as exc:
-            console.print(f"  [red]Skipping: {exc}[/red]")
+    try:
+        for d in dirs:
+            path = d["full_path"]
+            console.print(f"\nScanning: {path}")
+            try:
+                count = scanner(path)
+                total_count += count
+                console.print(f"  {count} file(s) recorded.")
+            except NotADirectoryError as exc:
+                console.print(f"  [red]Skipping: {exc}[/red]")
+    except KeyboardInterrupt:
+        console.print("\n[bold red]⚠ Interrupted by user (Ctrl+C). Saving database...[/bold red]")
+        conn.commit()
+        conn.close()
+        console.print(f"[yellow]Database saved. {total_count} file(s) recorded before interruption.[/yellow]")
+        return 130
 
     conn.close()
     console.print(f"\n[bold]Done. {total_count} file(s) recorded across {len(dirs)} director(ies).[/bold]")
