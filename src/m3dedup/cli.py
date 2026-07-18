@@ -310,6 +310,43 @@ def cmd_dirs(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_stats(args: argparse.Namespace) -> int:
+    console = Console()
+    if not Path(args.db).exists():
+        console.print(f"[red]Error:[/red] Database file does not exist: {args.db}")
+        console.print("[dim]Run 'dedup scan <directory>' first to create a database.[/dim]")
+        return 1
+    conn = open_db(args.db)
+
+    total_files = conn.execute("SELECT COUNT(*) FROM files").fetchone()[0]
+    partial_hashed = conn.execute("SELECT COUNT(*) FROM files WHERE md5_partial IS NOT NULL").fetchone()[0]
+    full_hashed = conn.execute("SELECT COUNT(*) FROM files WHERE md5_hash != ''").fetchone()[0]
+    total_size = conn.execute("SELECT COALESCE(SUM(size_bytes), 0) FROM files").fetchone()[0]
+    duplicate_groups = conn.execute(
+        "SELECT COUNT(*) FROM (SELECT md5_hash FROM files WHERE md5_hash != '' GROUP BY md5_hash HAVING COUNT(*) > 1)"
+    ).fetchone()[0]
+    duplicate_files = conn.execute(
+        "SELECT COUNT(*) FROM files WHERE md5_hash != '' AND md5_hash IN "
+        "(SELECT md5_hash FROM files WHERE md5_hash != '' GROUP BY md5_hash HAVING COUNT(*) > 1)"
+    ).fetchone()[0]
+    scanned_dirs = conn.execute("SELECT COUNT(*) FROM scanned_dirs").fetchone()[0]
+    conn.close()
+
+    if total_files == 0:
+        console.print("[yellow]Database is empty. No files recorded.[/yellow]")
+        return 0
+
+    console.print("[bold]Database Statistics[/bold]\n")
+    console.print(f"  Total files:          [bold]{total_files:,}[/bold]")
+    console.print(f"  With partial hash:    [bold]{partial_hashed:,}[/bold] ({partial_hashed * 100 // total_files}%)")
+    console.print(f"  With full hash:       [bold]{full_hashed:,}[/bold] ({full_hashed * 100 // total_files}%)")
+    console.print(f"  Total size:           [bold]{human_size(total_size)}[/bold] ({total_size:,} bytes)")
+    console.print(f"  Duplicate groups:     [bold]{duplicate_groups:,}[/bold]")
+    console.print(f"  Duplicate files:      [bold]{duplicate_files:,}[/bold]")
+    console.print(f"  Scanned directories:  [bold]{scanned_dirs:,}[/bold]")
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
         prog="dedup",
@@ -407,6 +444,15 @@ def main(argv: list[str] | None = None) -> int:
     )
     p_dirs.add_argument("--db", default=DEFAULT_DB, help=f"SQLite database path (default: {DEFAULT_DB})")
     p_dirs.set_defaults(func=cmd_dirs)
+
+    p_stats = sub.add_parser(
+        "stats",
+        help="Show database statistics",
+        description="Show statistics about the files table: total files, partial/full hash counts, duplicates, and more.",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
+    p_stats.add_argument("--db", default=DEFAULT_DB, help=f"SQLite database path (default: {DEFAULT_DB})")
+    p_stats.set_defaults(func=cmd_stats)
 
     args = parser.parse_args(argv)
     return args.func(args)
