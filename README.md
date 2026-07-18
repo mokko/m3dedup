@@ -80,6 +80,12 @@ dedup scan /path/to/directory --db /other/path.db
 dedup show --db /other/path.db
 ```
 
+Show database statistics (total files, hash counts, duplicate groups, total size, and more):
+
+```bash
+dedup stat
+```
+
 ## Database Schema
 
 Table: `files`
