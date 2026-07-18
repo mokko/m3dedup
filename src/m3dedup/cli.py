@@ -321,6 +321,7 @@ def cmd_stats(args: argparse.Namespace) -> int:
     total_files = conn.execute("SELECT COUNT(*) FROM files").fetchone()[0]
     partial_hashed = conn.execute("SELECT COUNT(*) FROM files WHERE md5_partial IS NOT NULL").fetchone()[0]
     full_hashed = conn.execute("SELECT COUNT(*) FROM files WHERE md5_hash != ''").fetchone()[0]
+    long_paths = conn.execute("SELECT COUNT(*) FROM files WHERE length(full_path) > 256").fetchone()[0]
     total_size = conn.execute("SELECT COALESCE(SUM(size_bytes), 0) FROM files").fetchone()[0]
     duplicate_groups = conn.execute(
         "SELECT COUNT(*) FROM (SELECT md5_hash FROM files WHERE md5_hash != '' GROUP BY md5_hash HAVING COUNT(*) > 1)"
@@ -341,6 +342,7 @@ def cmd_stats(args: argparse.Namespace) -> int:
     console.print(f"  With partial hash:    [bold]{partial_hashed:,}[/bold] ({partial_hashed * 100 // total_files}%)")
     console.print(f"  With full hash:       [bold]{full_hashed:,}[/bold] ({full_hashed * 100 // total_files}%)")
     console.print(f"  Total size:           [bold]{human_size(total_size)}[/bold] ({total_size:,} bytes)")
+    console.print(f"  Full paths > 256:     [bold]{long_paths:,}[/bold]")
     console.print(f"  Duplicate groups:     [bold]{duplicate_groups:,}[/bold]")
     console.print(f"  Duplicate files:      [bold]{duplicate_files:,}[/bold]")
     console.print(f"  Scanned directories:  [bold]{scanned_dirs:,}[/bold]")
