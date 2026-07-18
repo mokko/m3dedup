@@ -448,7 +448,7 @@ def main(argv: list[str] | None = None) -> int:
     p_dirs.set_defaults(func=cmd_dirs)
 
     p_stats = sub.add_parser(
-        "stats",
+        "stat",
         help="Show database statistics",
         description="Show statistics about the files table: total files, partial/full hash counts, duplicates, and more.",
         formatter_class=argparse.RawDescriptionHelpFormatter,
