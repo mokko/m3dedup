@@ -661,3 +661,150 @@ class TestDirsCLI:
         assert "2 scanned director" in out
         assert str(d1) in out
         assert str(d2) in out
+
+
+# ── Ctrl+C graceful shutdown ──────────────────────────────────────────
+
+class TestCtrlCGracefulShutdown:
+    """Verify Ctrl+C mid-scan commits partial results and exits 130."""
+
+    @patch("builtins.input", side_effect=["y"])
+    def test_sync_phase1_interrupt_commits_partial(self, mock_input, sample_dir, tmp_path, capsys):
+        """Interrupt during phase 1 (partial hashing); already-scanned files must be committed."""
+        db = tmp_path / "ctrl_p1.db"
+        from m3dedup import scanner as scanner_mod
+
+        real_insert = scanner_mod.insert_file
+        call_count = {"n": 0}
+
+        def insert_then_interrupt(conn, **kwargs):
+            call_count["n"] += 1
+            real_insert(conn, **kwargs)
+            # Raise after the 3rd file is inserted — mid-phase-1.
+            if call_count["n"] >= 3:
+                raise KeyboardInterrupt
+
+        with patch.object(scanner_mod, "insert_file", side_effect=insert_then_interrupt):
+            rc = cli_main(["scan", "--sync", str(sample_dir), "--db", str(db)])
+
+        assert rc == 130
+        out = capsys.readouterr().out
+        assert "Interrupted by user" in out
+        assert "Database saved" in out
+        # 3 files were inserted before the interrupt and should be committed.
+        from m3dedup.db import open_db
+        conn = open_db(db)
+        count = conn.execute("SELECT COUNT(*) FROM files").fetchone()[0]
+        conn.close()
+        assert count == 3
+
+    @patch("builtins.input", side_effect=["y"])
+    def test_async_phase1_interrupt_commits_partial(self, mock_input, sample_dir, tmp_path, capsys):
+        """Interrupt async scan during phase 1; already-scanned files must be committed."""
+        db = tmp_path / "ctrl_async_p1.db"
+        from m3dedup import scanner_async as scanner_async_mod
+        from m3dedup.db import insert_file as real_insert
+
+        call_count = {"n": 0}
+
+        def insert_then_interrupt(conn, **kwargs):
+            call_count["n"] += 1
+            real_insert(conn, **kwargs)
+            if call_count["n"] >= 3:
+                raise KeyboardInterrupt
+
+        # Patch the name as imported into scanner_async, not scanner.
+        with patch.object(scanner_async_mod, "insert_file", side_effect=insert_then_interrupt):
+            rc = cli_main(["scan", str(sample_dir), "--db", str(db)])
+
+        assert rc == 130
+        out = capsys.readouterr().out
+        assert "Interrupted by user" in out
+        assert "Database saved" in out
+        from m3dedup.db import open_db
+        conn = open_db(db)
+        count = conn.execute("SELECT COUNT(*) FROM files").fetchone()[0]
+        conn.close()
+        # Async may race slightly, but at least the 3 we forced must be present.
+        assert count >= 3
+
+    @patch("builtins.input", side_effect=["y"])
+    def test_sync_phase2_interrupt_commits_partial(self, mock_input, tmp_path, capsys):
+        """Interrupt during phase 2 (full hash resolution); phase-1 files + resolved hashes must be committed."""
+        # Build a dir with collisions so phase 2 has work to do.
+        # Files must be >4KB (PARTIAL_THRESHOLD) so full_hash is left empty
+        # in phase 1 and actually resolved in phase 2.
+        d = tmp_path / "collide"
+        d.mkdir()
+        content = b"identical content line\n" * 250  # ~5.5 KB, > 4KB threshold
+        (d / "dup1.txt").write_bytes(content)
+        (d / "dup2.txt").write_bytes(content)
+        (d / "dup3.txt").write_bytes(content)
+        (d / "dup4.txt").write_bytes(content)
+
+        db = tmp_path / "ctrl_p2.db"
+        # First, complete a full scan so all files are recorded.
+        cli_main(["scan", "--sync", str(d), "--db", str(db)])
+
+        # Force phase 2 to re-resolve on rescan by clearing full hashes AND
+        # bumping mtimes so resolve_hashes thinks the files changed.
+        import os, time
+        from m3dedup.db import open_db
+        conn = open_db(db)
+        conn.execute("UPDATE files SET md5_hash = ''")
+        conn.commit()
+        conn.close()
+        for f in d.iterdir():
+            # Set mtime to now so rescan sees the file as modified.
+            os.utime(f, (time.time(), time.time()))
+
+        from m3dedup import scanner as scanner_mod
+        real_update = scanner_mod.update_full_hash
+        call_count = {"n": 0}
+
+        def update_then_interrupt(conn, full_path, md5_hash):
+            call_count["n"] += 1
+            real_update(conn, full_path, md5_hash)
+            if call_count["n"] >= 2:
+                raise KeyboardInterrupt
+
+        with patch.object(scanner_mod, "update_full_hash", side_effect=update_then_interrupt):
+            rc = cli_main(["rescan", "--sync", "--db", str(db)])
+
+        assert rc == 130
+        out = capsys.readouterr().out
+        assert "Interrupted by user" in out
+        # All 4 phase-1 files must be present (phase 1 completed).
+        conn = open_db(db)
+        total = conn.execute("SELECT COUNT(*) FROM files").fetchone()[0]
+        resolved = conn.execute("SELECT COUNT(*) FROM files WHERE md5_hash != ''").fetchone()[0]
+        conn.close()
+        assert total == 4
+        # At least 2 full hashes were written before the interrupt.
+        assert resolved >= 2
+
+    @patch("builtins.input", side_effect=["y"])
+    def test_rescan_interrupt_commits_partial(self, mock_input, sample_dir, tmp_path, capsys):
+        """Interrupt rescan; partial results must be committed and exit code 130."""
+        db = tmp_path / "ctrl_rescan.db"
+        cli_main(["scan", str(sample_dir), "--db", str(db)])
+        (tmp_path / "extra").mkdir()
+        cli_main(["scan", str(tmp_path / "extra"), "--db", str(db)])
+
+        from m3dedup import scanner as scanner_mod
+        real_insert = scanner_mod.insert_file
+        call_count = {"n": 0}
+
+        def insert_then_interrupt(conn, **kwargs):
+            call_count["n"] += 1
+            real_insert(conn, **kwargs)
+            if call_count["n"] >= 3:
+                raise KeyboardInterrupt
+
+        with patch.object(scanner_mod, "insert_file", side_effect=insert_then_interrupt):
+            rc = cli_main(["rescan", "--sync", "--db", str(db)])
+
+        assert rc == 130
+        out = capsys.readouterr().out
+        assert "Interrupted by user" in out
+        assert "file(s) recorded before interruption" in out

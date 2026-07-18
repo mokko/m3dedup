@@ -277,11 +277,18 @@ async def resolve_collisions_async(conn, concurrency: int = 32, needs_full_resol
         task = resolve_progress.add_task("resolve", total=len(files_to_resolve))
 
         tasks = [asyncio.create_task(_resolve_one(f)) for f in files_to_resolve]
-        for coro in asyncio.as_completed(tasks):
-            ok = await coro
-            if ok:
-                resolved += 1
-            resolve_progress.advance(task)
+        try:
+            for coro in asyncio.as_completed(tasks):
+                ok = await coro
+                if ok:
+                    resolved += 1
+                resolve_progress.advance(task)
+        except BaseException:
+            for t in tasks:
+                if not t.done():
+                    t.cancel()
+            await asyncio.gather(*tasks, return_exceptions=True)
+            raise
 
     conn.commit()
     return resolved

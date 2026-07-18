@@ -84,14 +84,23 @@ async def _scan_directory_async(
         for full in file_paths:
             tasks.append(asyncio.create_task(_scan_one(full, scan_date, conn, sem)))
 
-        # Process results as they complete for progress feedback
-        for coro in asyncio.as_completed(tasks):
-            ok, needs_resolve_path = await coro
-            if ok:
-                count += 1
-                if needs_resolve_path:
-                    needs_full_resolve.append(needs_resolve_path)
-            progress.advance(task)
+        # Process results as they complete for progress feedback.
+        # On any exception (including KeyboardInterrupt), cancel pending
+        # tasks so asyncio doesn't emit "Task exception was never retrieved".
+        try:
+            for coro in asyncio.as_completed(tasks):
+                ok, needs_resolve_path = await coro
+                if ok:
+                    count += 1
+                    if needs_resolve_path:
+                        needs_full_resolve.append(needs_resolve_path)
+                progress.advance(task)
+        except BaseException:
+            for t in tasks:
+                if not t.done():
+                    t.cancel()
+            await asyncio.gather(*tasks, return_exceptions=True)
+            raise
 
     conn.commit()
     return count, scan_date, needs_full_resolve
